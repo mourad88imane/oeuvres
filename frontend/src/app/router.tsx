@@ -21,7 +21,10 @@ const ConventionDash     = lz(() => import("@modules/conventions/pages/Conventio
 const ConventionDetail   = lz(() => import("@modules/conventions/pages/ConventionDetailPage"),     "ConventionDetailPage");
 const ConventionCreate   = lz(() => import("@modules/conventions/pages/ConventionCreatePage"),     "ConventionCreatePage");
 const PartnersPage       = lz(() => import("@modules/conventions/pages/PartnersPage"),             "PartnersPage");
+const PartnerDetailPage  = lz(() => import("@modules/conventions/pages/PartnerDetailPage"),        "PartnerDetailPage");
+const PartnerEditPage    = lz(() => import("@modules/conventions/pages/PartnerEditPage"),          "PartnerEditPage");
 const UsersPage          = lz(() => import("@modules/users/pages/UsersPage"),                    "UsersPage");
+const UserCreatePage     = lz(() => import("@modules/users/pages/UserCreatePage"),               "UserCreatePage");
 const AnalyticsDashPage  = lz(() => import("@modules/analytics/pages/AnalyticsDashboardPage"),   "AnalyticsDashboardPage");
 const BeneficiariesPage  = lz(() => import("@modules/beneficiaries/pages/BeneficiariesListPage"), "BeneficiariesListPage");
 const ReportsPage        = lz(() => import("@modules/analytics/pages/ReportsPage"),               "ReportsPage");
@@ -33,23 +36,26 @@ const DocumentListPage = lz(() => import("@modules/documents/pages/DocumentListP
 const AIAssistantPage  = lz(() => import("@modules/ai/pages/AIAssistantPage"),                 "AIAssistantPage");
 const PredictiveAnalyticsPage = lz(() => import("@modules/ai/pages/PredictiveAnalyticsPage"), "PredictiveAnalyticsPage");
 const MedicalAnalysisPage = lz(() => import("@modules/medical-coverage/pages/MedicalAnalysisPage"), "MedicalAnalysisPage");
-const MedicalAnalysisForm = lz(() => import("@modules/medical-coverage/pages/MedicalAnalysisFormPage"), "MedicalAnalysisFormPage");
+const NewCoverageRequest = lz(() => import("@modules/medical-coverage/pages/NewCoverageRequestPage"), "NewCoverageRequestPage");
 const MedicalAnalysisDetail = lz(() => import("@modules/medical-coverage/pages/MedicalAnalysisDetailPage"), "MedicalAnalysisDetailPage");
 const MedicalImagingPage = lz(() => import("@modules/medical-coverage/pages/MedicalImagingPage"), "MedicalImagingPage");
-const MedicalImagingForm = lz(() => import("@modules/medical-coverage/pages/MedicalImagingFormPage"), "MedicalImagingFormPage");
 const MedicalImagingDetail = lz(() => import("@modules/medical-coverage/pages/MedicalImagingDetailPage"), "MedicalImagingDetailPage");
 const MedicalCenterPage = lz(() => import("@modules/medical-coverage/pages/MedicalCenterPage"), "MedicalCenterPage");
-const MedicalCenterForm = lz(() => import("@modules/medical-coverage/pages/MedicalCenterFormPage"), "MedicalCenterFormPage");
 const MedicalCenterDetail = lz(() => import("@modules/medical-coverage/pages/MedicalCenterDetailPage"), "MedicalCenterDetailPage");
 const LoansListPage      = lz(() => import("@modules/loans/pages/LoansListPage"),                 "LoansListPage");
 const LoanDetailPage     = lz(() => import("@modules/loans/pages/LoanDetailPage"),                "LoanDetailPage");
 const LoanCreatePage     = lz(() => import("@modules/loans/pages/LoanCreatePage"),                "LoanCreatePage");
 const EmployeeCreatePage = lz(() => import("@modules/employees/pages/EmployeeCreatePage"),       "EmployeeCreatePage");
+const EmployeeEditPage   = lz(() => import("@modules/employees/pages/EmployeeEditPage"),         "EmployeeEditPage");
 const BeneficiaryCreatePage = lz(() => import("@modules/beneficiaries/pages/BeneficiaryCreatePage"), "BeneficiaryCreatePage");
 const PartnerCreatePage  = lz(() => import("@modules/conventions/pages/PartnerCreatePage"),       "PartnerCreatePage");
 const CoverageRequestsListPage = lz(() => import("@modules/medical-coverage/pages/CoverageRequestsListPage"), "CoverageRequestsListPage");
 const CoverageRequestDetailPage = lz(() => import("@modules/medical-coverage/pages/CoverageRequestDetailPage"), "CoverageRequestDetailPage");
-const CoverageRequestWizardPage = lz(() => import("@modules/medical-coverage/pages/CoverageRequestWizardPage"), "CoverageRequestWizardPage");
+const VouchersListPage = lz(() => import("@modules/medical-coverage/pages/VouchersListPage"), "VouchersListPage");
+const HistoryPage = lz(() => import("@modules/medical-coverage/pages/HistoryPage"), "HistoryPage");
+const InvoicesListPage = lz(() => import("@modules/invoicing/pages/InvoicesListPage"), "InvoicesListPage");
+const InvoiceCreatePage = lz(() => import("@modules/invoicing/pages/InvoiceCreatePage"), "InvoiceCreatePage");
+const InvoiceDetailPage = lz(() => import("@modules/invoicing/pages/InvoiceDetailPage"), "InvoiceDetailPage");
 const SystemSettingsPage = lz(() => import("@modules/administration/pages/SystemSettingsPage"), "SystemSettingsPage");
 const OrgStructurePage = lz(() => import("@modules/organization/pages/OrgStructurePage"), "OrgStructurePage");
 const OrgFunctionsPage = lz(() => import("@modules/organization/pages/FunctionsPage"), "FunctionsPage");
@@ -80,11 +86,12 @@ const router = createBrowserRouter([
         { path: "/dashboard", element: W(DashboardPage) },
         { path: "/benefits",     element: W(BenefitsPage) },
         { path: "/benefits/:id", element: W(BenefitDetailPage) },
-        // Employees — admin, gestionnaire, comptable
-        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable"]} />, children: [
+        // Employees — admin, gestionnaire, comptable, department_manager, director
+        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable","department_manager","director"]} />, children: [
           { path: "/employees",       element: W(EmployeesPage) },
           { path: "/employees/new",   element: W(EmployeeCreatePage) },
-          { path: "/employees/:id",   element: W(EmployeeDetailPage) },
+          { path: "/employees/:id",     element: W(EmployeeDetailPage) },
+          { path: "/employees/:id/edit", element: W(EmployeeEditPage) },
         ]},
         // Finance — admin, comptable
         { element: <ProtectedRoute roles={["admin","comptable"]} />, children: [
@@ -92,11 +99,13 @@ const router = createBrowserRouter([
           { path: "/finance/payments", element: W(PaymentsPage) },
           { path: "/finance/budgets",  element: W(BudgetsPage) },
         ]},
-        // Conventions — admin, gestionnaire, comptable
-        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable"]} />, children: [
+        // Conventions — admin, gestionnaire, comptable, department_manager, director
+        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable","department_manager","director"]} />, children: [
           { path: "/conventions",              element: W(ConventionDash) },
-          { path: "/conventions/partners",     element: W(PartnersPage) },
-          { path: "/conventions/partners/new", element: W(PartnerCreatePage) },
+          { path: "/conventions/partners",        element: W(PartnersPage) },
+          { path: "/conventions/partners/new",    element: W(PartnerCreatePage) },
+          { path: "/conventions/partners/:id",    element: W(PartnerDetailPage) },
+          { path: "/conventions/partners/:id/edit", element: W(PartnerEditPage) },
           { path: "/conventions/new",          element: W(ConventionCreate) },
           { path: "/conventions/:id",          element: W(ConventionDetail) },
         ]},
@@ -110,6 +119,7 @@ const router = createBrowserRouter([
         // Admin
         { element: <ProtectedRoute roles={["admin"]} />, children: [
           { path: "/users",                element: W(UsersPage) },
+          { path: "/users/new",            element: W(UserCreatePage) },
           { path: "/settings",             element: <Navigate to="/admin/system-settings" replace /> },
           { path: "/admin/system-settings", element: W(SystemSettingsPage) },
           { path: "/admin/committee-params", element: W(CommitteeParametersPage) },
@@ -124,38 +134,50 @@ const router = createBrowserRouter([
           { path: "/admin/functions",       element: W(OrgFunctionsPage) },
           { path: "/admin/grades",          element: W(OrgGradesPage) },
           { path: "/monitoring",           element: W(MonitoringPage) },
-          { path: "/documents",           element: W(DocumentListPage) },
           { path: "/ai/assistant",         element: W(AIAssistantPage) },
           { path: "/ai/predictive",        element: W(PredictiveAnalyticsPage) },
         ]},
-        // Medical Coverage — admin, gestionnaire, comptable
-        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable"]} />, children: [
+        // Medical Coverage — admin, gestionnaire, comptable, department_manager, director
+        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable","department_manager","director"]} />, children: [
           // Analysis
           { path: "/medical-coverage/analysis", element: W(MedicalAnalysisPage) },
-          { path: "/medical-coverage/analysis/new", element: W(MedicalAnalysisForm) },
+          { path: "/medical-coverage/analysis/new", element: <Navigate to="/medical-coverage/new" replace /> },
           { path: "/medical-coverage/analysis/:id", element: W(MedicalAnalysisDetail) },
           { path: "/medical-coverage/imaging", element: W(MedicalImagingPage) },
-          { path: "/medical-coverage/imaging/new", element: W(MedicalImagingForm) },
+          { path: "/medical-coverage/imaging/new", element: <Navigate to="/medical-coverage/new" replace /> },
           { path: "/medical-coverage/imaging/:id", element: W(MedicalImagingDetail) },
           { path: "/medical-coverage/center", element: W(MedicalCenterPage) },
-          { path: "/medical-coverage/center/new", element: W(MedicalCenterForm) },
+          { path: "/medical-coverage/center/new", element: <Navigate to="/medical-coverage/new" replace /> },
           { path: "/medical-coverage/center/:id", element: W(MedicalCenterDetail) },
+          { path: "/medical-coverage/new", element: W(NewCoverageRequest) },
           // Loans — admin, gestionnaire, comptable
           { path: "/loans",     element: W(LoansListPage) },
           { path: "/loans/new", element: W(LoanCreatePage) },
           { path: "/loans/:id", element: W(LoanDetailPage) },
           // Coverage Requests
           { path: "/medical-coverage/requests",     element: W(CoverageRequestsListPage) },
-          { path: "/medical-coverage/requests/new", element: W(CoverageRequestWizardPage) },
+          { path: "/medical-coverage/requests/new", element: <Navigate to="/medical-coverage/new" replace /> },
           { path: "/medical-coverage/requests/:id", element: W(CoverageRequestDetailPage) },
+          // Vouchers
+          { path: "/medical-coverage/vouchers", element: W(VouchersListPage) },
+          // History
+          { path: "/medical-coverage/history", element: W(HistoryPage) },
+          // Invoicing — admin, gestionnaire, comptable
+          { path: "/invoicing",     element: W(InvoicesListPage) },
+          { path: "/invoicing/new", element: W(InvoiceCreatePage) },
+          { path: "/invoicing/:id", element: W(InvoiceDetailPage) },
         ]},
         // Notification preferences
         { element: <ProtectedRoute />, children: [
           { path: "/preferences/notifications", element: W(NotificationPrefsPage) },
         ]},
-        { element: <ProtectedRoute roles={["admin","gestionnaire"]} />, children: [
+        { element: <ProtectedRoute roles={["admin","gestionnaire","department_manager","director"]} />, children: [
           { path: "/beneficiaries",     element: W(BeneficiariesPage) },
           { path: "/beneficiaries/new", element: W(BeneficiaryCreatePage) },
+        ]},
+        // Documents — admin, gestionnaire, comptable, department_manager, director
+        { element: <ProtectedRoute roles={["admin","gestionnaire","comptable","department_manager","director"]} />, children: [
+          { path: "/documents", element: W(DocumentListPage) },
         ]},
       ],
     }],

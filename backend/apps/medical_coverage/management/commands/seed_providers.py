@@ -1,3 +1,4 @@
+import re
 from django.core.management.base import BaseCommand
 
 PROVIDERS = [
@@ -33,16 +34,45 @@ PROVIDERS = [
     {"name": "Etablissement Hospitalier Spécialisé Aïn Naâdja", "type": "hospital", "coverage_types": ["analysis", "imaging", "center"], "city": "Alger", "phone": "+213 21 56 78 90", "address": "Route de Aïn Naâdja, Djasr Kasentina"},
 ]
 
+COVERAGE_TO_CATEGORY = {
+    "analysis": "medical_analysis_lab",
+    "imaging": "medical_imaging_center",
+    "center": "medical_center",
+}
+
+MEDICAL_TYPE_TO_PARTNER_TYPE = {
+    "lab": "lab",
+    "imaging_center": "imaging_center",
+    "medical_center": "medical_center",
+    "clinic": "clinic",
+    "hospital": "hospital",
+    "specialist": "other",
+}
+
+
+def _make_code(name: str) -> str:
+    s = name.upper().replace("'", "")
+    s = re.sub(r"[^A-Z0-9\s]", "", s)
+    parts = s.split()
+    if len(parts) >= 3:
+        code = "".join(p[0] for p in parts[:3])
+    elif len(parts) == 2:
+        code = parts[0][:4] + parts[1][:2]
+    else:
+        code = parts[0][:6]
+    return code
+
 
 class Command(BaseCommand):
     help = "Seed les prestataires médicaux pour les bons de prise en charge"
 
     def handle(self, *args, **options):
         from apps.medical_coverage.models import MedicalProvider
+        from apps.conventions.models import Partner
 
         created_count = 0
         for data in PROVIDERS:
-            _, created = MedicalProvider.objects.get_or_create(
+            provider, created = MedicalProvider.objects.get_or_create(
                 name=data["name"],
                 defaults={
                     "type": data["type"],
@@ -54,8 +84,51 @@ class Command(BaseCommand):
                     "is_active": True,
                 },
             )
+
+            if provider.partner_id:
+                if created:
+                    self.stdout.write(f"  🏥 {data['name']} — {data['city']} (déjà lié au partenaire)")
+                continue
+
+            coverage = data["coverage_types"]
+            category = None
+            if len(coverage) == 1:
+                category = COVERAGE_TO_CATEGORY.get(coverage[0], "")
+            partner_type = MEDICAL_TYPE_TO_PARTNER_TYPE.get(data["type"], "other")
+            code = _make_code(data["name"])
+
+            partner, partner_created = Partner.objects.get_or_create(
+                name=data["name"],
+                defaults={
+                    "code": code,
+                    "type": partner_type,
+                    "category": category or "",
+                    "address": data.get("address", ""),
+                    "phone": data.get("phone", ""),
+                    "email": data.get("email", ""),
+                    "city": data["city"],
+                    "is_active": True,
+                },
+            )
+            if not partner_created:
+                code = f"{code}-{provider.pk.hex[:6]}"
+                partner = Partner.objects.create(
+                    code=code,
+                    name=data["name"],
+                    type=partner_type,
+                    category=category or "",
+                    address=data.get("address", ""),
+                    phone=data.get("phone", ""),
+                    email=data.get("email", ""),
+                    city=data["city"],
+                    is_active=True,
+                )
+
+            provider.partner = partner
+            provider.save(update_fields=["partner"])
+
             if created:
                 created_count += 1
-                self.stdout.write(f"  🏥 {data['name']} — {data['city']}")
+                self.stdout.write(f"  🏥 {data['name']} — {data['city']} (partenaire lié)")
 
-        self.stdout.write(self.style.SUCCESS(f"✅ {created_count} prestataires créés"))
+        self.stdout.write(self.style.SUCCESS(f"✅ {created_count} prestataires créés avec partenaires liés"))

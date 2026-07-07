@@ -63,6 +63,86 @@ export const REQUEST_STATUS_UI: Record<RequestStatus, { label: string; color: st
   closed:             { label: "Clôturée",                   color: "#8a8882", bg: "rgba(138,136,130,0.08)" },
 };
 
+export type EligibilityStatus = "APPROVED" | "PENDING_MANAGER_APPROVAL" | "NOT_ELIGIBLE";
+
+export interface EmployeeEligibilityInfo {
+  id: string;
+  matricule: string;
+  full_name: string;
+  department: string;
+  position: string;
+  marital_status: string;
+  marital_status_display: string;
+}
+
+export interface BeneficiaryEligibilityInfo {
+  id: string;
+  full_name: string;
+  relationship: string;
+  relationship_display: string;
+  is_eligible: boolean;
+}
+
+export interface VoucherSummary {
+  total_vouchers: number;
+  last_voucher_reference: string | null;
+  last_voucher_date: string | null;
+  last_voucher_type: string | null;
+  last_voucher_provider: string | null;
+  count_last_3_months: number;
+  count_current_year: number;
+}
+
+export interface VoucherEligibility {
+  is_eligible: boolean;
+  messages: string[];
+  next_eligible_date: string | null;
+  last_voucher_date: string | null;
+  last_voucher_reference: string | null;
+  count_last_3_months: number;
+  count_current_year: number;
+  remaining: number;
+}
+
+export interface RequestHistoryItem {
+  id: string;
+  request_number: string;
+  coverage_date: string;
+  workflow_state: string;
+  category_display: string;
+  partner_name: string;
+  beneficiary_name: string | null;
+}
+
+export interface EmployeeEligibilityResponse {
+  status: EligibilityStatus;
+  reason: string;
+  employee: EmployeeEligibilityInfo;
+  beneficiaries: BeneficiaryEligibilityInfo[];
+  count_employee_requests: number;
+  count_beneficiary_requests: number;
+  total_requests_last_period: number;
+  restriction_period_months: number;
+  last_request: {
+    id: string;
+    request_number: string;
+    coverage_date: string;
+    workflow_state: string;
+    category_display: string;
+    partner_name: string;
+    beneficiary_name: string | null;
+  } | null;
+  request_history: RequestHistoryItem[];
+  voucher_summary: VoucherSummary | null;
+  voucher_eligibility: VoucherEligibility | null;
+}
+
+export const ELIGIBILITY_UI: Record<EligibilityStatus, { label: string; color: string; bg: string }> = {
+  APPROVED: { label: "Éligible", color: "#16a34a", bg: "rgba(34,197,94,0.1)" },
+  PENDING_MANAGER_APPROVAL: { label: "En attente de validation", color: "#f97316", bg: "rgba(249,115,22,0.1)" },
+  NOT_ELIGIBLE: { label: "En attente de validation", color: "#dc2626", bg: "rgba(239,68,68,0.1)" },
+};
+
 export const REQUEST_WORKFLOW_ORDER: RequestStatus[] = [
   "draft", "submitted", "pending_approval", "pending_manager_approval", "pending_director_approval", "validated", "printed", "closed",
 ];

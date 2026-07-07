@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Button, Card, Tabs, Tag } from "antd";
 import { Plus, RefreshCw, Activity, CheckCircle, Clock, Printer } from "lucide-react";
 import { useCoverageRequests, useCoverageRequestStatistics } from "../hooks/useCoverageRequests";
 import { REQUEST_STATUS_UI } from "../types/request";
 
 export function CoverageRequestsListPage() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [tab, setTab] = useState("all");
   const { data, isLoading, refetch } = useCoverageRequests(
@@ -20,7 +18,7 @@ export function CoverageRequestsListPage() {
 
   const statusTabs = [
     { key: "all", label: "Toutes" },
-    { key: "pending_approval", label: "En attente" },
+    { key: "pending_manager_approval", label: "En attente" },
     { key: "validated", label: "Validées" },
     { key: "printed", label: "Imprimées" },
   ];
@@ -36,7 +34,7 @@ export function CoverageRequestsListPage() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Demandes de couverture médicale</h1>
+          <h1 className="text-2xl font-bold">Demandes</h1>
           <p className="text-gray-500 text-sm">{pagination?.count ?? 0} demandes</p>
         </div>
         <div className="flex items-center gap-2">

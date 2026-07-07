@@ -51,7 +51,7 @@ class EmployeeViewSet(TenantViewSetMixin, ModelViewSet):
         return EmployeeDetailSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "history", "statistics"):
+        if self.action in ("list", "retrieve", "history", "statistics", "business_history"):
             return [IsAuthenticated(), IsAdminOrGestionnaire()]
         if self.action == "destroy":
             return [IsAuthenticated(), IsAdmin()]
@@ -151,6 +151,84 @@ class EmployeeViewSet(TenantViewSetMixin, ModelViewSet):
                 "data": EmployeeHistorySerializer(records, many=True).data,
             }
         )
+
+    @action(detail=True, methods=["get"], url_path="business-history")
+    def business_history(self, request, pk=None):
+        emp = self.get_object()
+        results = []
+
+        # Benefits
+        from apps.benefits.models import Benefit
+        for b in Benefit.objects.filter(employee=emp, is_deleted=False).values(
+            "id", "reference", "workflow_state", "created_at", "updated_at",
+            "created_by__first_name", "created_by__last_name",
+        ):
+            results.append({
+                "id": str(b["id"]),
+                "date": b["created_at"].isoformat() if b["created_at"] else "",
+                "type": "benefit",
+                "type_label": "Prestation",
+                "reference": b["reference"],
+                "beneficiary": emp.get_full_name(),
+                "status": b["workflow_state"],
+                "requested_by": f"{b['created_by__first_name'] or ''} {b['created_by__last_name'] or ''}".strip(),
+                "updated_at": b["updated_at"].isoformat() if b["updated_at"] else "",
+            })
+
+        # Loans
+        from apps.loans.models import Loan
+        for l in Loan.objects.filter(employee=emp, is_deleted=False).values(
+            "id", "reference", "workflow_state", "created_at", "updated_at",
+            "created_by__first_name", "created_by__last_name",
+        ):
+            results.append({
+                "id": str(l["id"]),
+                "date": l["created_at"].isoformat() if l["created_at"] else "",
+                "type": "loan",
+                "type_label": "Prêt",
+                "reference": l["reference"],
+                "beneficiary": emp.get_full_name(),
+                "status": l["workflow_state"],
+                "requested_by": f"{l['created_by__first_name'] or ''} {l['created_by__last_name'] or ''}".strip(),
+                "updated_at": l["updated_at"].isoformat() if l["updated_at"] else "",
+            })
+
+        # Medical Coverage Vouchers
+        from apps.medical_coverage.models import MedicalCoverageVoucher
+        for v in MedicalCoverageVoucher.objects.filter(employee=emp, is_deleted=False).select_related(
+            "coverage_type", "beneficiary"
+        ):
+            results.append({
+                "id": str(v.id),
+                "date": v.created_at.isoformat() if v.created_at else "",
+                "type": "medical_voucher",
+                "type_label": f"Couverture médicale - {v.coverage_type.name if v.coverage_type else ''}",
+                "reference": v.reference,
+                "beneficiary": v.beneficiary.get_full_name() if v.beneficiary else emp.get_full_name(),
+                "status": v.workflow_state,
+                "requested_by": v.created_by.get_full_name() if v.created_by else "",
+                "updated_at": v.updated_at.isoformat() if v.updated_at else "",
+            })
+
+        # Medical Coverage Requests
+        from apps.medical_coverage.models import MedicalCoverageRequest
+        for r in MedicalCoverageRequest.objects.filter(employee=emp, is_deleted=False).select_related(
+            "beneficiary"
+        ):
+            results.append({
+                "id": str(r.id),
+                "date": r.created_at.isoformat() if r.created_at else "",
+                "type": "medical_request",
+                "type_label": "Demande de couverture médicale",
+                "reference": r.request_number,
+                "beneficiary": r.beneficiary.get_full_name() if r.beneficiary else emp.get_full_name(),
+                "status": r.workflow_state,
+                "requested_by": r.created_by.get_full_name() if r.created_by else "",
+                "updated_at": r.updated_at.isoformat() if r.updated_at else "",
+            })
+
+        results.sort(key=lambda x: x.get("date", ""), reverse=True)
+        return Response({"status": "success", "count": len(results), "data": results})
 
     @action(detail=False, methods=["get"], url_path="statistics")
     def statistics(self, request):

@@ -1,3 +1,5 @@
+import uuid
+
 from rest_framework import serializers
 
 from core.serializers import BaseModelSerializer
@@ -70,6 +72,14 @@ class PartnerSerializer(BaseModelSerializer):
 
 
 class PartnerCreateSerializer(serializers.ModelSerializer):
+    category = serializers.ChoiceField(choices=[
+        "medical_analysis_lab",
+        "medical_center",
+        "medical_imaging_center",
+    ], required=True)
+    code = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    type = serializers.CharField(required=False, default="other")
+
     class Meta:
         model = Partner
         fields = [
@@ -98,8 +108,12 @@ class PartnerCreateSerializer(serializers.ModelSerializer):
             "metadata",
         ]
 
-    def validate_code(self, value):
-        return value.upper().strip()
+    def validate(self, attrs):
+        if not attrs.get("code"):
+            attrs["code"] = f"PRT-{uuid.uuid4().hex[:8].upper()}"
+        else:
+            attrs["code"] = attrs["code"].upper().strip()
+        return attrs
 
 
 class ConventionListSerializer(serializers.ModelSerializer):
@@ -126,6 +140,7 @@ class ConventionListSerializer(serializers.ModelSerializer):
             "days_until_expiry",
             "duration_display",
             "renewal_mode",
+            "covered_services",
             "created_at",
         ]
 
@@ -171,6 +186,7 @@ class ConventionSerializer(BaseModelSerializer):
             "is_active",
             "ai_metadata",
             "analytics_data",
+            "covered_services",
             "created_at",
             "updated_at",
             "created_by_name",
@@ -192,6 +208,7 @@ class ConventionCreateSerializer(serializers.ModelSerializer):
             "amount",
             "auto_renewal_days",
             "requires_attachments",
+            "covered_services",
         ]
 
     def validate(self, attrs):

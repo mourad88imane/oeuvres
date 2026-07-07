@@ -5,7 +5,7 @@ import {
   ArrowLeft, Coins, AlertTriangle, FileText, MessageSquare, Activity, Trash2,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useLoan, useDeleteLoan, useWorkflowLog } from "../hooks/useLoans";
+import { useLoan, useDeleteLoan, useWorkflowLog, useTransition } from "../hooks/useLoans";
 import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { Spinner, ConfirmDialog, EmptyState } from "@shared/components/ui/index";
 import { WorkflowTimeline, WorkflowBadge, WorkflowActions } from "@modules/benefits/components/WorkflowComponents";
@@ -28,6 +28,7 @@ export function LoanDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const deleteMutation = useDeleteLoan();
   const { data: loan, isLoading } = useLoan(id ?? null);
+  const loanTransition = useTransition(id ?? "");
 
   if (isLoading) return (
     <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -115,7 +116,7 @@ export function LoanDetailPage() {
         </div>
 
         <div className="mt-6">
-          <WorkflowActions benefit={loan as any} onSuccess={handleRefresh} />
+          <WorkflowActions benefit={loan as any} onSuccess={handleRefresh} transitionMutation={loanTransition} />
         </div>
       </div>
 

@@ -26,8 +26,13 @@ export function EmployeeCreatePage() {
       });
       message.success(t("employees.created"));
       navigate("/employees");
-    } catch {
-      // validation errors handled by form
+    } catch (err: any) {
+      if (err?.response?.data?.errors) {
+        const fieldErrors: Record<string, string[]> = err.response.data.errors;
+        Object.entries(fieldErrors).forEach(([field, msgs]) => {
+          form.setFields([{ name: field, errors: msgs }]);
+        });
+      }
     }
   };
 
@@ -100,7 +105,7 @@ export function EmployeeCreatePage() {
                     <Form.Item name="matricule" label={t("employees.matricule")}>
                       <Input placeholder={t("employees.matriculePlaceholder")} />
                     </Form.Item>
-                    <Form.Item name="department" label={t("employees.department")}>
+                    <Form.Item name="department" label={t("employees.department")} rules={[{ required: true, message: t("validation.required") }]}>
                       <Select placeholder={t("employees.selectDepartment")} allowClear showSearch
                         filterOption={(input, option) =>
                           (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
@@ -115,13 +120,13 @@ export function EmployeeCreatePage() {
                     <Form.Item name="service" label={t("employees.service")}>
                       <Input placeholder={t("employees.servicePlaceholder")} />
                     </Form.Item>
-                    <Form.Item name="job_title" label={t("employees.jobTitle")}>
+                    <Form.Item name="job_title" label={t("employees.jobTitle")} rules={[{ required: true, message: t("validation.required") }]}>
                       <Input placeholder={t("employees.jobTitlePlaceholder")} />
                     </Form.Item>
                     <Form.Item name="grade" label={t("employees.grade")}>
                       <Input placeholder={t("employees.gradePlaceholder")} />
                     </Form.Item>
-                    <Form.Item name="date_hired" label={t("employees.dateHired")}>
+                    <Form.Item name="date_hired" label={t("employees.dateHired")} rules={[{ required: true, message: t("validation.required") }]}>
                       <DatePicker className="w-full" format="YYYY-MM-DD" />
                     </Form.Item>
                     <Form.Item name="phone" label={t("employees.phone")}>

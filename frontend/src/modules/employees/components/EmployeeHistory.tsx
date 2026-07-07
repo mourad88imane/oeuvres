@@ -1,110 +1,201 @@
-/**
- * EMPLOYEE HISTORY — Timeline des modifications
- */
-import { Clock, Plus, Edit2, Trash2, User } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useEmployeeHistory } from "../hooks/useEmployees";
+import { useNavigate } from "react-router-dom";
+import {
+  Clock, Gift, HandCoins, FileText, ChevronDown, ChevronUp,
+  ExternalLink, Filter,
+} from "lucide-react";
+import { useEmployeeBusinessHistory } from "../hooks/useEmployees";
 import { Spinner, EmptyState } from "@shared/components/ui/index";
-import type { HistoryRecord } from "../types";
+import type { BusinessHistoryRecord } from "../types";
 
 interface EmployeeHistoryProps { employeeId: string; }
 
+const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; route: string }> = {
+  benefit:          { icon: Gift,     color: "text-purple-600", bg: "bg-purple-100", route: "/benefits" },
+  loan:             { icon: HandCoins, color: "text-amber-600", bg: "bg-amber-100", route: "/loans" },
+  medical_voucher:  { icon: FileText,  color: "text-blue-600",  bg: "bg-blue-100",  route: "/medical-coverage/vouchers" },
+  medical_request:  { icon: FileText,  color: "text-teal-600",  bg: "bg-teal-100",  route: "/medical-coverage/requests" },
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Brouillon", submitted: "Soumis", under_review: "En cours",
+  on_hold: "En attente", pending_director_approval: "Approbation direction",
+  validated: "Validé", approved: "Approuvé", rejected: "Rejeté",
+  paid: "Payé", cancelled: "Annulé", consumed: "Consommé",
+  pending_approval: "En attente", pending_manager_approval: "Approbation chef",
+  printed: "Imprimé", closed: "Clôturé", active: "Actif", fully_repaid: "Remboursé",
+};
+
 export function EmployeeHistory({ employeeId }: EmployeeHistoryProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { data, isLoading } = useEmployeeBusinessHistory(employeeId);
+  const [showFilters, setShowFilters] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-    "+": { label: t("employees.historyCreation"),     icon: Plus,   color: "text-green-600", bg: "bg-green-100" },
-    "~": { label: t("employees.historyModification"), icon: Edit2,  color: "text-blue-600",  bg: "bg-blue-100"  },
-    "-": { label: t("employees.historyDeletion"),     icon: Trash2, color: "text-red-600",   bg: "bg-red-100"   },
-  };
+  const filtered = useMemo(() => {
+    if (!data?.data) return [];
+    let items = data.data;
+    if (typeFilter !== "all") items = items.filter((r) => r.type === typeFilter);
+    if (statusFilter !== "all") items = items.filter((r) => r.status === statusFilter);
+    return items;
+  }, [data, typeFilter, statusFilter]);
 
-  const FIELD_LABELS: Record<string, string> = {
-    first_name: t("employees.firstName"), last_name: t("employees.lastName"), job_title: t("employees.jobTitle"),
-    status: t("employees.status"), department_id: t("employees.department"), grade: t("employees.grade"),
-    grade_level: t("employees.gradeLevel"), contract_type: t("employees.contractType"),
-    date_hired: t("employees.dateHired"), base_salary: t("employees.salary"),
-    marital_status: t("employees.maritalStatus"), phone: t("employees.phone"),
-    email_professional: t("employees.email"), education_level: t("employees.educationLevel"),
-    national_id: t("employees.nationalId"), notes: t("common.notes"),
-  };
+  if (isLoading) {
+    return <div className="flex justify-center py-12"><Spinner size="lg" /></div>;
+  }
 
-  const { data, isLoading } = useEmployeeHistory(employeeId);
-
-  if (isLoading) return (
-    <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-  );
-
-  if (!data?.data.length) return (
-    <EmptyState icon={Clock} title={t("employees.noHistory")} description={t("employees.noHistoryDescription")} />
-  );
-
-  function HistoryEntry({ record }: { record: HistoryRecord }) {
-    const cfg = TYPE_CONFIG[record.history_type] ?? TYPE_CONFIG["~"];
-    const Icon = cfg.icon;
-    const date = new Date(record.history_date);
-
+  if (!data?.data.length) {
     return (
-      <div className="flex gap-4 relative">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ${cfg.bg}`}>
-          <Icon className={`w-4 h-4 ${cfg.color}`} />
-        </div>
-        <div className="flex-1 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
-              {record.history_user && (
-                <span className="text-xs text-gray-500 flex items-center gap-1">
-                  <User className="w-3 h-3" />
-                  {record.history_user.name}
-                </span>
-              )}
-            </div>
-            <time className="text-xs text-gray-400">
-              {date.toLocaleDateString("fr-DZ", { day: "2-digit", month: "short", year: "numeric" })}
-              {" — "}
-              {date.toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
-            </time>
-          </div>
-          {record.changed_fields.length > 0 && (
-            <div className="space-y-1.5 mt-2 pt-2 border-t border-gray-100">
-              {record.changed_fields.map((change) => (
-                <div key={change.field} className="flex items-start gap-2 text-xs">
-                  <span className="text-gray-500 font-medium min-w-28 shrink-0">
-                    {FIELD_LABELS[change.field] ?? change.field}
-                  </span>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {change.old != null && (
-                      <span className="line-through text-red-400 bg-red-50 px-1.5 py-0.5 rounded">
-                        {change.old || t("employees.emptyValue")}
-                      </span>
-                    )}
-                    {change.old != null && <span className="text-gray-400">→</span>}
-                    {change.new != null && (
-                      <span className="text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
-                        {change.new || t("employees.emptyValue")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <EmptyState
+        icon={Clock}
+        title={t("employees.noHistory")}
+        description="Aucune opération métier trouvée pour cet employé."
+      />
     );
   }
 
+  const typeOptions = Array.from(new Set(data.data.map((r) => r.type)));
+  const statusOptions = Array.from(new Set(data.data.map((r) => r.status)));
+
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-gray-400 mb-4">{t("employees.records")}</p>
-      <div className="relative">
-        <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200" />
-        <div className="space-y-4">
-          {data.data.map((record) => (
-            <HistoryEntry key={record.history_id} record={record} />
-          ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">{data.count} opération(s)</p>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+        >
+          <Filter className="w-3 h-3" />
+          Filtres
+          {showFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+      </div>
+
+      {showFilters && (
+        <div className="flex gap-4 flex-wrap">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="border rounded px-2 py-1 text-xs"
+          >
+            <option value="all">Tous les types</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_CONFIG[t] ? t : t}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border rounded px-2 py-1 text-xs"
+          >
+            <option value="all">Tous les statuts</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s] ?? s}
+              </option>
+            ))}
+          </select>
         </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs text-gray-500 uppercase tracking-wider">
+              <th className="pb-2 pr-3">Date</th>
+              <th className="pb-2 pr-3">Type</th>
+              <th className="pb-2 pr-3">Référence</th>
+              <th className="pb-2 pr-3">Bénéficiaire</th>
+              <th className="pb-2 pr-3">Statut</th>
+              <th className="pb-2 pr-3">Demandé par</th>
+              <th className="pb-2 pr-3">Mis à jour</th>
+              <th className="pb-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((record) => (
+              <Row key={`${record.type}-${record.id}`} record={record} navigate={navigate} />
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
+}
+
+function Row({ record, navigate }: { record: BusinessHistoryRecord; navigate: ReturnType<typeof useNavigate> }) {
+  const cfg = TYPE_CONFIG[record.type];
+  const Icon = cfg?.icon ?? FileText;
+
+  return (
+    <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      <td className="py-2.5 pr-3 whitespace-nowrap">
+        {formatDate(record.date)}
+      </td>
+      <td className="py-2.5 pr-3">
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center ${cfg?.bg ?? "bg-gray-100"}`}>
+            <Icon className={`w-3.5 h-3.5 ${cfg?.color ?? "text-gray-500"}`} />
+          </div>
+          <span className="text-xs font-medium text-gray-700">{record.type_label}</span>
+        </div>
+      </td>
+      <td className="py-2.5 pr-3 font-mono text-xs text-gray-600">{record.reference}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-600">{record.beneficiary}</td>
+      <td className="py-2.5 pr-3">
+        <StatusBadge status={record.status} />
+      </td>
+      <td className="py-2.5 pr-3 text-xs text-gray-500">{record.requested_by || "—"}</td>
+      <td className="py-2.5 pr-3 text-xs text-gray-400 whitespace-nowrap">{formatDate(record.updated_at)}</td>
+      <td className="py-2.5">
+        {cfg && (
+          <button
+            onClick={() => navigate(`${cfg.route}/${record.id}`)}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+          >
+            Détail <ExternalLink className="w-3 h-3" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-600",
+    submitted: "bg-blue-100 text-blue-700",
+    under_review: "bg-yellow-100 text-yellow-700",
+    on_hold: "bg-orange-100 text-orange-700",
+    pending_director_approval: "bg-purple-100 text-purple-700",
+    pending_approval: "bg-yellow-100 text-yellow-700",
+    pending_manager_approval: "bg-indigo-100 text-indigo-700",
+    validated: "bg-green-100 text-green-700",
+    approved: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
+    paid: "bg-emerald-100 text-emerald-700",
+    cancelled: "bg-gray-100 text-gray-500",
+    consumed: "bg-teal-100 text-teal-700",
+    printed: "bg-cyan-100 text-cyan-700",
+    closed: "bg-gray-100 text-gray-500",
+    active: "bg-green-100 text-green-700",
+    fully_repaid: "bg-blue-100 text-blue-700",
+  };
+
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorMap[status] ?? "bg-gray-100 text-gray-600"}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("fr-DZ", { day: "2-digit", month: "short", year: "numeric" });
 }

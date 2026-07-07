@@ -22,7 +22,7 @@ class PartnerService:
     def get_queryset(self):
         return Partner.objects.filter(is_deleted=False)
 
-    def search(self, queryset=None, search="", type="", is_active="", wilaya="", category=""):
+    def search(self, queryset=None, search="", type="", is_active="", wilaya="", category="", has_active_convention=""):
         qs = queryset or self.get_queryset()
         if search:
             qs = qs.filter(
@@ -37,6 +37,8 @@ class PartnerService:
             qs = qs.filter(category=category)
         if is_active:
             qs = qs.filter(is_active=(is_active.lower() == "true"))
+        if has_active_convention:
+            qs = qs.filter(conventions__status="active").distinct()
         if wilaya:
             qs = qs.filter(wilaya__icontains=wilaya)
         return qs
@@ -54,7 +56,7 @@ class PartnerService:
         for k, v in data.items():
             setattr(instance, k, v)
         instance.save()
-        audit.log_update(instance, old_data=old, user=user, request=request)
+        audit.log_update(user=user, obj=instance, before_data=old, request=request)
         logger.info("Partenaire mis à jour: %s", instance.code)
         return instance
 
@@ -113,7 +115,7 @@ class ConventionService:
         for k, v in data.items():
             setattr(instance, k, v)
         instance.save()
-        audit.log_update(instance, old_data=old, user=user, request=request)
+        audit.log_update(user=user, obj=instance, before_data=old, request=request)
         self._check_and_create_alerts(instance)
         logger.info("Convention mise à jour: %s", instance.reference)
         return instance
@@ -167,8 +169,8 @@ class ConventionService:
 
         audit.log_action(
             action="RENEW",
-            instance=new_conv,
-            extra={
+            obj=new_conv,
+            extra_data={
                 "old_end_date": str(old_end_date),
                 "new_end_date": str(new_end_date),
                 "notes": notes,
@@ -191,8 +193,8 @@ class ConventionService:
         instance.save()
         audit.log_action(
             action="TERMINATE",
-            instance=instance,
-            extra={"reason": reason},
+            obj=instance,
+            extra_data={"reason": reason},
             user=user,
             request=request,
         )

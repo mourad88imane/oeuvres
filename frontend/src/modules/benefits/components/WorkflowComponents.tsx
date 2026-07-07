@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { UseMutationResult } from "@tanstack/react-query";
 import {
   CheckCircle2, Clock, Send, FileCheck, Banknote,
   XCircle, PauseCircle, Ban, ChevronRight, AlertTriangle, Loader2,
@@ -191,6 +192,7 @@ export function WorkflowTimeline({ benefit, compact = false }: WorkflowTimelineP
 interface WorkflowActionsProps {
   benefit: Benefit;
   onSuccess?: () => void;
+  transitionMutation?: UseMutationResult<unknown, Error, Record<string, unknown>>;
 }
 
 const TRANSITION_STYLE: Record<string, string> = {
@@ -213,10 +215,11 @@ interface TransitionFormData {
   comment: string;
 }
 
-export function WorkflowActions({ benefit, onSuccess }: WorkflowActionsProps) {
+export function WorkflowActions({ benefit, onSuccess, transitionMutation }: WorkflowActionsProps) {
   const { t } = useTranslation();
   const [selectedTransition, setSelectedTransition] = useState<AvailableTransition | null>(null);
-  const transitionMutation = useTransition(benefit.id);
+  const internalMutation = useTransition(benefit.id);
+  const mutation = transitionMutation ?? internalMutation;
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<TransitionFormData>();
 
@@ -237,7 +240,7 @@ export function WorkflowActions({ benefit, onSuccess }: WorkflowActionsProps) {
     if (data.paid_amount)       payload.paid_amount       = parseFloat(data.paid_amount);
     if (data.comment)           payload.comment           = data.comment;
 
-    await transitionMutation.mutateAsync(payload as unknown as Parameters<typeof transitionMutation.mutateAsync>[0]);
+    await mutation.mutateAsync(payload as Parameters<typeof mutation.mutateAsync>[0]);
     setSelectedTransition(null);
     onSuccess?.();
   });
@@ -286,7 +289,7 @@ export function WorkflowActions({ benefit, onSuccess }: WorkflowActionsProps) {
               {t("common.cancel")}
             </button>
             <button type="button" onClick={handleConfirm}
-              disabled={transitionMutation.isPending}
+              disabled={mutation.isPending}
               className={clsx(
                 "flex items-center gap-2 px-5 py-2 text-sm rounded-lg font-medium transition-colors",
                 selectedTransition?.severity === "CRITICAL"
@@ -294,7 +297,7 @@ export function WorkflowActions({ benefit, onSuccess }: WorkflowActionsProps) {
                   : "bg-brand hover:bg-brand-light text-white",
                 "disabled:opacity-60",
               )}>
-              {transitionMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {t("common.confirm")}
             </button>
           </>
@@ -391,10 +394,10 @@ export function WorkflowActions({ benefit, onSuccess }: WorkflowActionsProps) {
           </div>
 
           {/* Erreur API */}
-          {transitionMutation.error && (
+          {mutation.error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700">
-                {(transitionMutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || t("workflow.transitionError")}
+                {(mutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || t("workflow.transitionError")}
               </p>
             </div>
           )}

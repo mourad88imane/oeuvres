@@ -54,6 +54,7 @@ class PartnerViewSet(viewsets.ModelViewSet):
             category=self.request.query_params.get("category", ""),
             is_active=self.request.query_params.get("is_active", ""),
             wilaya=self.request.query_params.get("wilaya", ""),
+            has_active_convention=self.request.query_params.get("has_active_convention", ""),
         )
 
     def perform_create(self, serializer):
@@ -71,6 +72,13 @@ class PartnerViewSet(viewsets.ModelViewSet):
             user=self.request.user,
             request=self.request,
         )
+
+    @action(detail=True, methods=["get"])
+    def has_active_convention(self, request, pk=None):
+        partner = self.get_object()
+        from .models import Convention
+        active = partner.conventions.filter(status=Convention.Status.ACTIVE).exists()
+        return Response({"has_active_convention": active})
 
 
 class ConventionViewSet(TenantViewSetMixin, viewsets.ModelViewSet):

@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { Button, Card, Tag, Descriptions, Modal, Input, message, Steps } from "antd";
-import { ArrowLeft, Download, Printer, CheckCircle, XCircle } from "lucide-react";
+import { Button, Card, Tag, Descriptions, Modal, Input, message, Steps, Tooltip } from "antd";
+import { ArrowLeft, Download, Printer, Eye, CheckCircle, XCircle, History } from "lucide-react";
 import { useState } from "react";
 import {
   useCoverageRequest,
@@ -14,7 +13,6 @@ import type { RequestStatus } from "../types/request";
 export function CoverageRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { data: request } = useCoverageRequest(id ?? null);
   const transitionMut = useTransitionCoverageRequest(id!);
   const [actionModal, setActionModal] = useState<{ to_state: string; label: string; requires_reason: boolean } | null>(null);
@@ -35,10 +33,36 @@ export function CoverageRequestDetailPage() {
     }
   };
 
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pdfDataUrl, setPdfDataUrl] = useState("");
+
+  const getPdfData = async (): Promise<Blob> => {
+    const resp = await coverageRequestApi.downloadPdf(id!);
+    return new Blob([resp.data], { type: "application/pdf" });
+  };
+
+  const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  const handlePreviewPdf = async () => {
+    try {
+      const blob = await getPdfData();
+      const dataUrl = await blobToDataUrl(blob);
+      setPdfDataUrl(dataUrl);
+      setPreviewOpen(true);
+    } catch {
+      message.error("Erreur lors de l'aperçu du PDF");
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
-      const resp = await coverageRequestApi.downloadPdf(id!);
-      const url = URL.createObjectURL(new Blob([resp.data]));
+      const blob = await getPdfData();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `${request?.request_number}.pdf`;
@@ -46,6 +70,26 @@ export function CoverageRequestDetailPage() {
       URL.revokeObjectURL(url);
     } catch {
       message.error("Erreur lors du téléchargement du PDF");
+    }
+  };
+
+  const handlePrint = async () => {
+    try {
+      const blob = await getPdfData();
+      const url = URL.createObjectURL(blob);
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(`<embed src="${url}" type="application/pdf" width="100%" height="100%" style="border:none">`);
+        w.document.close();
+        setTimeout(() => {
+          w.focus();
+          w.print();
+        }, 1000);
+      } else {
+        message.warning("Autorisez les popups pour imprimer, ou utilisez Télécharger PDF");
+      }
+    } catch {
+      message.error("Erreur lors de l'impression");
     }
   };
 
@@ -65,12 +109,21 @@ export function CoverageRequestDetailPage() {
           <ArrowLeft className="w-4 h-4" />Retour
         </button>
         <div className="flex gap-2">
-          <Button icon={<Download className="w-4 h-4" />} onClick={handleDownloadPdf}>
-            Télécharger PDF
-          </Button>
-          <Button icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>
-            Imprimer
-          </Button>
+          <Tooltip title="Aperçu avant impression">
+            <Button icon={<Eye className="w-4 h-4" />} onClick={handlePreviewPdf}>
+              Aperçu
+            </Button>
+          </Tooltip>
+          <Tooltip title="Télécharger le PDF">
+            <Button icon={<Download className="w-4 h-4" />} onClick={handleDownloadPdf}>
+              Télécharger PDF
+            </Button>
+          </Tooltip>
+          <Tooltip title="Imprimer le bon">
+            <Button type="primary" icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
+              Imprimer
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
@@ -99,6 +152,15 @@ export function CoverageRequestDetailPage() {
         </Descriptions>
       </Card>
 
+      {request.print_count > 0 && (
+        <Card size="small" className="!bg-gray-50">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <History className="w-4 h-4" />
+            <span>Imprimé {request.print_count} fois{request.printed_at ? ` — Dernière impression : ${new Date(request.printed_at).toLocaleString("fr-DZ")}` : ""}</span>
+          </div>
+        </Card>
+      )}
+
       {transitions.length > 0 && (
         <Card title="Actions">
           <div className="flex flex-wrap gap-2">
@@ -124,6 +186,17 @@ export function CoverageRequestDetailPage() {
         <p className="text-sm text-gray-500 mt-2">
           {actionModal ? `Voulez-vous ${actionModal.label.toLowerCase()} cette demande ?` : ""}
         </p>
+      </Modal>
+
+      <Modal title="Aperçu du bon de prise en charge"
+        open={previewOpen}
+        onCancel={() => { setPreviewOpen(false); setPdfDataUrl(""); }}
+        footer={null}
+        width={800}
+        destroyOnClose>
+        {pdfDataUrl && (
+          <embed src={pdfDataUrl} type="application/pdf" width="100%" height="600" />
+        )}
       </Modal>
     </div>
   );

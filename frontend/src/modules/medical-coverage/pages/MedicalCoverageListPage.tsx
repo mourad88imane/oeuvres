@@ -81,9 +81,7 @@ export function MedicalCoverageListPage({ coverageType }: Props) {
   const Icon = (coverageType && TYPE_ICONS[coverageType]) || Microscope;
   const typeLabel = (coverageType && TYPE_LABELS[coverageType]) || "Couverture Médicale";
 
-  const newPath = coverageType
-    ? `/medical-coverage/${coverageType}/new`
-    : "/medical-coverage/new";
+  const newPath = "/medical-coverage/new";
 
   return (
     <div className="space-y-6 py-6">
@@ -309,7 +307,7 @@ export function MedicalCoverageListPage({ coverageType }: Props) {
         {pagination && pagination.total_pages > 1 && (
           <div className="flex items-center justify-between mt-5 pt-4" style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
             <span className="text-xs font-medium" style={{ color: "#8a8882" }}>
-              Page {pagination.page} sur {pagination.total_pages} ({pagination.total} résultats)
+              Page {pagination.page} sur {pagination.total_pages} ({pagination.count} résultats)
             </span>
             <div className="flex gap-1">
               <button

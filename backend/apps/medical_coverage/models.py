@@ -34,6 +34,12 @@ class MedicalProvider(BaseModel):
     email = models.EmailField(blank=True, verbose_name=_("Email"))
     city = models.CharField(max_length=100, blank=True, verbose_name=_("Ville"))
     is_active = models.BooleanField(default=True, verbose_name=_("Actif"))
+    partner = models.OneToOneField(
+        "conventions.Partner", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="medical_provider",
+        verbose_name=_("Prestataire conventionné"),
+        help_text=_("Lien vers la fiche partenaire dans le module conventions"),
+    )
 
     class Meta:
         verbose_name = _("Prestataire médical")
@@ -77,6 +83,7 @@ class MedicalCoverageVoucher(WorkflowMixin, BaseModel):
         ("rejected", _("Rejetée")),
         ("cancelled", _("Annulée")),
         ("consumed", _("Consommée")),
+        ("invoiced", _("Facturée")),
     ]
     BENEFICIARY_TYPES = [
         ("employee", _("Employé")),
@@ -212,6 +219,8 @@ class MedicalCoverageRequest(WorkflowMixin, BaseModel):
         null=True, blank=True, verbose_name=_("Date de validation"),
     )
     observation = models.TextField(blank=True, verbose_name=_("Observation"))
+    printed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Date d'impression"))
+    print_count = models.PositiveIntegerField(default=0, verbose_name=_("Nombre d'impressions"))
     workflow_state = models.CharField(
         max_length=30, choices=Status.choices,
         default=Status.DRAFT, verbose_name=_("Statut"),

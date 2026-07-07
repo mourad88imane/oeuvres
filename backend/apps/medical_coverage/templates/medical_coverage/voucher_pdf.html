@@ -5,116 +5,297 @@
   <style>
     @page {
       size: A4;
-      margin: 2cm;
+      margin: 1.5cm 1.8cm;
+    }
+    @page :first {
+      @top-center {
+        content: "";
+      }
+    }
+    html, body {
+      height: 100%;
     }
     body {
       font-family: 'DejaVu Sans', sans-serif;
-      font-size: 12pt;
-      color: #1a1917;
-      line-height: 1.5;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
     }
-    .header {
+    .main-content {
+      flex: 1;
+    }
+
+    /* ── Official Republic Header ── */
+    .republic-header {
       text-align: center;
-      margin-bottom: 30px;
-      border-bottom: 2px solid #ffda2d;
-      padding-bottom: 20px;
+      margin-bottom: 16px;
     }
-    .header h1 {
-      font-size: 14pt;
-      margin: 0 0 5px 0;
-      text-transform: uppercase;
-    }
-    .header h2 {
-      font-size: 12pt;
-      margin: 0;
-      font-weight: normal;
-    }
-    .header h3 {
-      font-size: 16pt;
-      margin: 15px 0 0 0;
-      color: #ffda2d;
-    }
-    .voucher-number {
-      text-align: center;
+    .republic-header .republique {
       font-size: 13pt;
       font-weight: bold;
-      margin: 20px 0;
-      padding: 10px;
-      border: 2px solid #1a1917;
-      display: inline-block;
-      width: 100%;
+      letter-spacing: 1px;
+      margin: 0 0 2px 0;
     }
-    table {
+    .republic-header .premier {
+      font-size: 11pt;
+      font-weight: normal;
+      margin: 0 0 2px 0;
+    }
+    .republic-header .cos {
+      font-size: 13pt;
+      font-weight: bold;
+      margin: 6px 0 0 0;
+    }
+
+    /* ── Decorative Band ── */
+    .band {
+      height: 4px;
+      background: linear-gradient(to right, #006b3f 33%, #ffffff 33%, #ffffff 66%, #d32f2f 66%);
+      margin: 0 0 18px 0;
+      border: none;
+    }
+
+    /* ── Provider Name Block ── */
+    .provider-block {
+      text-align: center;
+      margin: 0 0 16px 0;
+    }
+    .provider-block .provider-name {
+      font-size: 15pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 0 0 4px 0;
+    }
+    .provider-block .provider-category {
+      font-size: 10pt;
+      color: #555;
+      margin: 0;
+    }
+
+    /* ── Voucher Title ── */
+    .voucher-title {
+      text-align: center;
+      margin: 0 0 4px 0;
+    }
+    .voucher-title .title {
+      font-size: 16pt;
+      font-weight: bold;
+      margin: 0;
+    }
+    .voucher-title .subtitle {
+      font-size: 11pt;
+      color: #333;
+      margin: 2px 0 0 0;
+    }
+
+    /* ── Coverage Number Box ── */
+    .ref-box {
+      text-align: center;
+      margin: 10px auto 18px auto;
+      border: 2px solid #1a1a1a;
+      padding: 8px 20px;
+      display: inline-block;
+      width: auto;
+    }
+    .ref-box .ref-label {
+      font-size: 10pt;
+      font-weight: bold;
+      margin: 0;
+    }
+    .ref-box .ref-number {
+      font-size: 14pt;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin: 2px 0 0 0;
+    }
+
+    /* ── Info Table ── */
+    table.info {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0;
+      margin: 0 0 20px 0;
     }
-    td {
-      padding: 10px;
-      border: 1px solid #ddd;
+    table.info td {
+      padding: 7px 10px;
+      border: 1px solid #999;
+      vertical-align: top;
     }
-    td.label {
+    table.info td.label {
       font-weight: bold;
-      width: 40%;
-      background: #f5f4f0;
+      width: 32%;
+      background: #f0f0f0;
+      font-size: 10pt;
     }
-    .footer {
-      margin-top: 50px;
-      text-align: center;
+    table.info td.value {
+      width: 68%;
+      font-size: 11pt;
+    }
+    table.info td.value .beneficiary-detail {
+      display: block;
       font-size: 9pt;
-      color: #8a8882;
+      color: #555;
+      margin-top: 1px;
+    }
+
+    /* ── Observation ── */
+    .observation-box {
+      border: 1px solid #999;
+      padding: 8px 10px;
+      min-height: 36px;
+      margin: 0 0 10px 0;
+    }
+    .observation-box .obs-label {
+      font-weight: bold;
+      font-size: 10pt;
+      margin: 0 0 3px 0;
+    }
+    .observation-box .obs-text {
+      font-size: 10pt;
+      color: #333;
+      margin: 0;
+    }
+
+    /* ── Signature Area ── */
+    .signature-area {
+      display: flex;
+      justify-content: space-between;
+    }
+    .signature-area .sig-col {
+      text-align: center;
+      width: 40%;
+    }
+    .signature-area .sig-col .sig-line {
+      border-top: 1px solid #999;
+      padding-top: 6px;
+      font-size: 9pt;
+      font-weight: bold;
+    }
+    .signature-area .sig-col .sig-label {
+      font-size: 8pt;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 7.5pt;
+      color: #888;
+      border-top: 1px solid #ccc;
+      padding-top: 6px;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</h1>
-    <h2>PREMIER MINISTRE</h2>
-    <h3>COMITÉ DES ŒUVRES SOCIALES</h3>
+
+  <!-- Republic Header -->
+  <div class="republic-header">
+    <p class="republique">RÉPUBLIQUE ALGÉRIENNE DÉMOCRATIQUE ET POPULAIRE</p>
+    <p class="premier">PREMIER MINISTRE</p>
+    <p class="cos">COMMISSION DES ŒUVRES SOCIALES</p>
   </div>
 
-  <div class="voucher-number">
-    BON DE PRISE EN CHARGE N° {{ request_number }}
+  <!-- Decorative Band -->
+  <div class="band"></div>
+
+  <div class="main-content">
+
+  <!-- Provider Name -->
+  <div class="provider-block">
+    {% if partner %}
+    <p class="provider-name">{{ partner.name }}</p>
+    <p class="provider-category">{{ partner.get_type_display }}</p>
+    {% else %}
+    <p class="provider-name">{{ request_obj.get_category_display }}</p>
+    {% endif %}
   </div>
 
-  <table>
+  <!-- Voucher Title -->
+  <div class="voucher-title">
+    <p class="title">BON DE PRISE EN CHARGE</p>
+  </div>
+
+  <!-- Coverage Number Box -->
+  <div class="ref-box">
+    <p class="ref-label">PRISE EN CHARGE N°</p>
+    <p class="ref-number">{{ request_number }}</p>
+  </div>
+
+  <!-- Info Table -->
+  <table class="info">
     <tr>
       <td class="label">Employé (Nom)</td>
-      <td>{{ employee.last_name }}</td>
+      <td class="value">{{ employee.last_name }}</td>
     </tr>
     <tr>
       <td class="label">Employé (Prénom)</td>
-      <td>{{ employee.first_name }}</td>
+      <td class="value">{{ employee.first_name }}</td>
     </tr>
     {% if beneficiary %}
     <tr>
-      <td class="label">Ayant droit</td>
-      <td>{{ beneficiary.get_full_name }} ({{ beneficiary.get_relationship_display }})</td>
+      <td class="label">Bénéficiaire</td>
+      <td class="value">{{ beneficiary.get_full_name }}</td>
     </tr>
+    {% if beneficiary.relationship %}
+    <tr>
+      <td class="label">Qualité</td>
+      <td class="value">{{ beneficiary.get_relationship_display }}</td>
+    </tr>
+    {% endif %}
     {% endif %}
     <tr>
       <td class="label">Type d'examen</td>
-      <td>Selon prescription médicale</td>
+      <td class="value">Selon Prescription Médicale</td>
     </tr>
     <tr>
       <td class="label">Date de couverture</td>
-      <td>{{ coverage_date|date:"d/m/Y" }}</td>
+      <td class="value">{{ coverage_date|date:"d/m/Y" }}</td>
     </tr>
     {% if validation_date %}
     <tr>
       <td class="label">Date de validation</td>
-      <td>{{ validation_date|date:"d/m/Y" }}</td>
+      <td class="value">{{ validation_date|date:"d/m/Y" }}</td>
     </tr>
     {% endif %}
+    {% if request_obj.partner and request_obj.partner.city %}
     <tr>
-      <td class="label">Partenaire</td>
-      <td>{{ partner.name }}</td>
+      <td class="label">Lieu</td>
+      <td class="value">{{ request_obj.partner.city }}</td>
     </tr>
+    {% endif %}
   </table>
 
-  <div class="footer">
-    Document généré automatiquement - COMITÉ DES ŒUVRES SOCIALES<br>
-    {{ request_number }} - {{ coverage_date|date:"d/m/Y" }}
+  <!-- Observation -->
+  {% if request_obj.observation %}
+  <div class="observation-box">
+    <p class="obs-label">Observation</p>
+    <p class="obs-text">{{ request_obj.observation }}</p>
   </div>
+  {% endif %}
+
+  </div><!-- /main-content -->
+
+  <!-- Signature Area -->
+  <div class="signature-area">
+    <div class="sig-col">
+      <p class="sig-line">Cachet &amp; Signature du prestataire</p>
+      <p class="sig-label">(À remplir par le prestataire)</p>
+    </div>
+    <div class="sig-col">
+      <p class="sig-line">Signature du bénéficiaire</p>
+      <p class="sig-label">(Reconnaissance de prise en charge)</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Document généré automatiquement — COMMISSION DES ŒUVRES SOCIALES<br>
+    {{ request_number }} — {{ coverage_date|date:"d/m/Y" }}
+  </div>
+
 </body>
 </html>

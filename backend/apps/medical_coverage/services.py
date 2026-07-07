@@ -74,7 +74,7 @@ class MedicalCoverageService:
         vouchers = self.Voucher.objects.filter(
             employee_id=employee_id,
             workflow_state__in=["approved", "consumed"],
-        )
+        ).select_related("coverage_type", "provider")
         if coverage_type_code:
             vouchers = vouchers.filter(coverage_type__code=coverage_type_code)
 
@@ -92,6 +92,7 @@ class MedicalCoverageService:
             "last_voucher_reference": last.reference if last else None,
             "last_voucher_date": str(last.request_date) if last else None,
             "last_voucher_type": last.coverage_type.name if last else None,
+            "last_voucher_provider": last.provider.name if last and last.provider else None,
             "count_last_3_months": last_3m,
             "count_current_year": this_year,
         }
@@ -459,6 +460,140 @@ class MedicalCoverageRequestService:
                 "severity": transition.severity,
             })
         return results
+
+    def check_employee_eligibility(self, employee_id, category):
+        from apps.employees.models import Employee
+        from apps.beneficiaries.models import Beneficiary
+        from apps.medical_coverage.models import MedicalCoverageType
+        from apps.medical_coverage.eligibility import EligibilityEngine
+
+        try:
+            employee = Employee.objects.select_related("department").get(id=employee_id)
+        except Employee.DoesNotExist:
+            return None
+
+        restriction_months = self.get_restriction_period_months()
+        cutoff = timezone.now().date() - relativedelta(months=restriction_months)
+
+        employee_count = self.Request.objects.filter(
+            employee=employee,
+            category=category,
+            created_at__gte=cutoff,
+            beneficiary__isnull=True,
+        ).count()
+
+        beneficiaries = Beneficiary.objects.filter(employee=employee)
+        total_beneficiary_count = 0
+        for b in beneficiaries:
+            count = self.Request.objects.filter(
+                employee=employee,
+                beneficiary=b,
+                category=category,
+                created_at__gte=cutoff,
+            ).count()
+            total_beneficiary_count += count
+
+        total_count = employee_count + total_beneficiary_count
+
+        last_request = self.Request.objects.filter(
+            employee=employee,
+            category=category,
+        ).select_related("partner", "beneficiary").order_by("-created_at").first()
+
+        recent_requests = list(self.Request.objects.filter(
+            employee=employee,
+            category=category,
+            created_at__gte=cutoff,
+        ).select_related("partner", "beneficiary").order_by("-created_at"))
+
+        marital_display = employee.get_marital_status_display() if hasattr(employee, "get_marital_status_display") else employee.marital_status
+
+        employee_info = {
+            "id": str(employee.id),
+            "matricule": employee.matricule,
+            "full_name": f"{employee.first_name} {employee.last_name}",
+            "department": employee.department.name if employee.department else "",
+            "position": employee.job_title or "",
+            "marital_status": employee.marital_status,
+            "marital_status_display": marital_display,
+        }
+
+        beneficiaries_info = [
+            {
+                "id": str(b.id),
+                "full_name": f"{b.first_name} {b.last_name}",
+                "relationship": b.relationship,
+                "relationship_display": b.get_relationship_display() if hasattr(b, "get_relationship_display") else b.relationship,
+                "is_eligible": b.is_eligible,
+            }
+            for b in beneficiaries
+        ]
+
+        voucher_summary = None
+        voucher_eligibility = None
+        try:
+            ct = MedicalCoverageType.objects.get(code=category)
+            voucher_svc = MedicalCoverageService()
+            voucher_summary = voucher_svc.get_employee_coverage_summary(employee_id, category)
+            engine = EligibilityEngine(voucher_svc.Voucher)
+            e_result = engine.check_employee_eligibility(employee_id, ct, timezone.now().date())
+            voucher_eligibility = {
+                "is_eligible": e_result.is_eligible,
+                "messages": e_result.messages,
+                "next_eligible_date": str(e_result.next_eligible_date) if e_result.next_eligible_date else None,
+                "last_voucher_date": str(e_result.last_voucher_date) if e_result.last_voucher_date else None,
+                "last_voucher_reference": e_result.last_voucher_reference,
+                "count_last_3_months": e_result.count_last_3_months,
+                "count_current_year": e_result.count_current_year,
+                "remaining": e_result.remaining,
+            }
+        except MedicalCoverageType.DoesNotExist:
+            pass
+
+        voucher_blocked = voucher_eligibility and not voucher_eligibility["is_eligible"]
+        if voucher_blocked:
+            status = "NOT_ELIGIBLE"
+            reason = voucher_eligibility["messages"][0] if voucher_eligibility["messages"] else "Non éligible selon les règles de gestion"
+        elif total_count == 0:
+            status = "APPROVED"
+            reason = f"Aucune demande dans les {restriction_months} derniers mois. Demande auto-validée."
+        else:
+            status = "PENDING_MANAGER_APPROVAL"
+            reason = f"{total_count} demande(s) trouvée(s) dans les {restriction_months} derniers mois. Approbation requise."
+
+        return {
+            "status": status,
+            "reason": reason,
+            "employee": employee_info,
+            "beneficiaries": beneficiaries_info,
+            "count_employee_requests": employee_count,
+            "count_beneficiary_requests": total_beneficiary_count,
+            "total_requests_last_period": total_count,
+            "restriction_period_months": restriction_months,
+            "last_request": {
+                "id": str(last_request.id),
+                "request_number": last_request.request_number,
+                "coverage_date": str(last_request.coverage_date),
+                "workflow_state": last_request.workflow_state,
+                "category_display": last_request.get_category_display(),
+                "partner_name": last_request.partner.name if last_request.partner else "",
+                "beneficiary_name": f"{last_request.beneficiary.first_name} {last_request.beneficiary.last_name}".strip() if last_request.beneficiary else None,
+            } if last_request else None,
+            "request_history": [
+                {
+                    "id": str(r.id),
+                    "request_number": r.request_number,
+                    "coverage_date": str(r.coverage_date),
+                    "workflow_state": r.workflow_state,
+                    "category_display": r.get_category_display(),
+                    "partner_name": r.partner.name if r.partner else "",
+                    "beneficiary_name": f"{r.beneficiary.first_name} {r.beneficiary.last_name}".strip() if r.beneficiary else None,
+                }
+                for r in recent_requests
+            ],
+            "voucher_summary": voucher_summary,
+            "voucher_eligibility": voucher_eligibility,
+        }
 
     def get_statistics(self, category=None):
         qs = self.Request.objects.all()

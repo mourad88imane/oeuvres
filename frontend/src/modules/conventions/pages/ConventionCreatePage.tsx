@@ -9,6 +9,25 @@ const { TextArea } = Input;
 const { Option } = Select;
 const { Dragger } = Upload;
 
+const COVERED_SERVICES = [
+  { value: "consultation", label: "Consultation médicale" },
+  { value: "specialized_consultation", label: "Consultation spécialisée" },
+  { value: "analysis", label: "Analyses médicales" },
+  { value: "imaging", label: "Imagerie médicale" },
+  { value: "radiology", label: "Radiologie" },
+  { value: "ultrasound", label: "Échographie" },
+  { value: "mri", label: "IRM" },
+  { value: "scanner", label: "Scanner" },
+  { value: "hospitalization", label: "Hospitalisation" },
+  { value: "surgery", label: "Chirurgie" },
+  { value: "dental", label: "Soins dentaires" },
+  { value: "ophthalmology", label: "Ophtalmologie" },
+  { value: "physiotherapy", label: "Kinésithérapie" },
+  { value: "pharmacy", label: "Pharmacie" },
+  { value: "prosthesis", label: "Prothèses et appareillage" },
+  { value: "other", label: "Autres prestations" },
+];
+
 export function ConventionCreatePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -103,7 +122,14 @@ export function ConventionCreatePage() {
                     <Form.Item name="description" label={t("conventions.description")}>
                       <TextArea rows={3} />
                     </Form.Item>
-                    <div />
+                    <Form.Item name="covered_services" label={t("conventions.coveredServices")}>
+                      <Select mode="multiple" placeholder={t("conventions.selectCoveredServices")}
+                        allowClear maxTagCount={4}>
+                        {COVERED_SERVICES.map(s => (
+                          <Option key={s.value} value={s.value}>{s.label}</Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
                     <Form.Item name="signed_date" label={t("conventions.signedDate")}>
                       <DatePicker className="w-full" format="YYYY-MM-DD" />
                     </Form.Item>

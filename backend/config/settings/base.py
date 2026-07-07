@@ -70,6 +70,7 @@ LOCAL_APPS = [
     "apps.dashboard",
     "apps.monitoring",
     "apps.medical_coverage",
+    "apps.invoicing",
     "apps.administration",
     "apps.organization",
 ]

@@ -52,7 +52,7 @@ export function PartnerCreatePage() {
           </div>
         </div>
 
-        <Form form={form} layout="vertical" onFinish={onSubmit}>
+        <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={{ is_active: true }}>
           <Tabs activeKey={activeTab} onChange={setActiveTab} type="card" size="large"
             items={[
               {
@@ -86,6 +86,12 @@ export function PartnerCreatePage() {
                         <Option value="other">Autre</Option>
                       </Select>
                     </Form.Item>
+                    <Form.Item name="is_active" label={t("common.status")}>
+                      <Select>
+                        <Option value={true}>{t("conventions.active")}</Option>
+                        <Option value={false}>{t("conventions.inactive")}</Option>
+                      </Select>
+                    </Form.Item>
                   </div>
                 ),
               },
@@ -101,24 +107,27 @@ export function PartnerCreatePage() {
                     <Form.Item name="phone" label={t("conventions.phone")}>
                       <Input />
                     </Form.Item>
+                    <Form.Item name="contact_phone" label={t("conventions.mobile")}>
+                      <Input />
+                    </Form.Item>
                     <Form.Item name="email" label={t("conventions.email")}>
                       <Input type="email" />
+                    </Form.Item>
+                    <Form.Item name="website" label={t("conventions.website")}>
+                      <Input />
                     </Form.Item>
                     <Form.Item name="contact_name" label={t("conventions.contactPerson")}>
                       <Input />
                     </Form.Item>
-                    <Form.Item name="contact_phone" label={t("conventions.contactPhone")}>
-                      <Input />
-                    </Form.Item>
-                    <Form.Item name="gps_coordinates" label={t("conventions.gpsCoordinates")}>
-                      <Input placeholder="36.7538° N, 3.0588° E" />
+                    <Form.Item name="contact_email" label={t("conventions.contactEmail")}>
+                      <Input type="email" />
                     </Form.Item>
                   </div>
                 ),
               },
               {
-                key: "description",
-                label: <span className="flex items-center gap-2"><FileText className="w-4 h-4" />{t("conventions.tabDescription")}</span>,
+                key: "additional",
+                label: <span className="flex items-center gap-2"><FileText className="w-4 h-4" />{t("conventions.tabAdditional")}</span>,
                 children: (
                   <div className="grid grid-cols-1 gap-4 pt-4">
                     <Form.Item name="description" label={t("conventions.description")}>

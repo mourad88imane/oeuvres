@@ -1,4 +1,1 @@
-import { MedicalCoverageFormPage } from "./MedicalCoverageFormPage";
-export function MedicalImagingFormPage() {
-  return <MedicalCoverageFormPage coverageType="imaging" />;
-}
+export { NewCoverageRequestPage as MedicalImagingFormPage } from "./NewCoverageRequestPage";

@@ -15,7 +15,7 @@ class Beneficiary(BaseModel):
     class Relationship(models.TextChoices):
         SPOUSE = "spouse", "Conjoint(e)"
         CHILD = "child", "Enfant"
-        PARENT = "parent", "Parent"
+        PARENT = "parent", "Parent(e)"
         SIBLING = "sibling", "Frère/Sœur"
         OTHER = "other", "Autre"
 

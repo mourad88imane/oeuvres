@@ -189,11 +189,12 @@ class IsDirector(BasePermission):
 
 
 class IsAdminOrGestionnaire(BasePermission):
-    message = "Accès réservé aux administrateurs et gestionnaires."
+    message = "Accès réservé aux administrateurs, gestionnaires, chefs de service et directeurs."
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in [
             RoleSlug.ADMIN, RoleSlug.GESTIONNAIRE,
+            RoleSlug.DEPARTMENT_MANAGER, RoleSlug.DIRECTOR,
         ]
 
 

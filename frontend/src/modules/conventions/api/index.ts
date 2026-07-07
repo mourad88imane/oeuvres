@@ -25,6 +25,8 @@ export const conventionsApi = {
     apiClient.post("/conventions/partners/", data),
   updatePartner: (id: string, data: Record<string, unknown>) =>
     apiClient.patch(`/conventions/partners/${id}/`, data),
+  deletePartner: (id: string) =>
+    apiClient.delete(`/conventions/partners/${id}/`),
 
   // Conventions
   listConventions: (filters: ConventionFilters = {}) =>
@@ -102,6 +104,14 @@ export const useUpdatePartner = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => conventionsApi.updatePartner(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["conventions", "partners"] }),
+  });
+};
+
+export const useDeletePartner = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => conventionsApi.deletePartner(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["conventions", "partners"] }),
   });
 };

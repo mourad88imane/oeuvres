@@ -5,7 +5,8 @@ import {
   FileText, BarChart3, Settings, LogOut, ChevronLeft,
   Building2, Shield, Lightbulb, Activity, Bot,
   HandCoins, GitBranch, ClipboardList, Sliders, KeyRound, GitMerge, UserCog, Workflow,
-  TrendingUp, Briefcase, Layers,
+  TrendingUp, Briefcase, Layers, Handshake,
+  Receipt, Clock,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "@modules/auth/hooks/useAuth";
@@ -25,16 +26,15 @@ const navItemDefs: Omit<NavItem, "labelKey">[] = [
   {
     path: "/employees",
     icon: Users,
-    roles: ["admin", "gestionnaire", "comptable"],
+    roles: ["admin", "gestionnaire", "comptable", "department_manager"],
   },
   {
     path: "/beneficiaries",
     icon: UserCheck,
-    roles: ["admin", "gestionnaire"],
+    roles: ["admin", "gestionnaire", "department_manager", "director"],
   },
   { path: "/benefits", icon: Gift },
-  { path: "/medical-coverage/requests", icon: FileText, roles: ["admin", "gestionnaire", "comptable"] },
-  { path: "/loans", icon: HandCoins, roles: ["admin", "gestionnaire", "comptable"] },
+  { path: "/loans", icon: HandCoins, roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"] },
   {
     path: "/finance",
     icon: Wallet,
@@ -43,12 +43,17 @@ const navItemDefs: Omit<NavItem, "labelKey">[] = [
   {
     path: "/conventions",
     icon: Building2,
-    roles: ["admin", "gestionnaire", "comptable"],
+    roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"],
+  },
+  {
+    path: "/conventions/partners",
+    icon: Handshake,
+    roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"],
   },
   {
     path: "/reporting",
     icon: FileText,
-    roles: ["admin", "gestionnaire", "comptable"],
+    roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"],
   },
   {
     path: "/analytics",
@@ -83,7 +88,7 @@ const navItemDefs: Omit<NavItem, "labelKey">[] = [
   {
     path: "/documents",
     icon: FileText,
-    roles: ["admin", "gestionnaire", "comptable"],
+    roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"],
   },
 ];
 
@@ -104,15 +109,26 @@ const adminItemDefs: Omit<NavItem, "labelKey">[] = [
   { path: "/monitoring", icon: Activity, roles: ["admin"] },
 ];
 
+const careSupportItemDefs: Omit<NavItem, "labelKey">[] = [
+  { path: "/medical-coverage/requests", icon: ClipboardList, roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"] },
+  { path: "/medical-coverage/vouchers", icon: FileText, roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"] },
+  { path: "/invoicing", icon: Receipt, roles: ["admin", "gestionnaire", "comptable"] },
+  { path: "/medical-coverage/history", icon: Clock, roles: ["admin", "gestionnaire", "comptable", "department_manager", "director"] },
+];
+
 const pathToNavKey: Record<string, string> = {
   "/dashboard": "dashboard",
   "/employees": "employees",
   "/beneficiaries": "beneficiaries",
   "/benefits": "benefits",
   "/medical-coverage/requests": "coverageRequests",
+  "/medical-coverage/vouchers": "vouchers",
+  "/medical-coverage/history": "history",
   "/loans": "loans",
+  "/invoicing": "invoicing",
   "/finance": "finance",
   "/conventions": "conventions",
+  "/conventions/partners": "partners",
   "/reporting": "reports",
   "/analytics": "analytics",
   "/analytics/decisions": "decisions",
@@ -161,6 +177,15 @@ export function Sidebar({ collapsed = false, onCollapse }: SidebarProps) {
   );
 
   const filteredAdminItems = adminItems.filter(
+    (item) => !item.roles || (user && item.roles.includes(user.role))
+  );
+
+  const careSupportItems: NavItem[] = careSupportItemDefs.map((d) => ({
+    ...d,
+    labelKey: pathToNavKey[d.path],
+  }));
+
+  const filteredCareSupport = careSupportItems.filter(
     (item) => !item.roles || (user && item.roles.includes(user.role))
   );
 
@@ -219,6 +244,23 @@ export function Sidebar({ collapsed = false, onCollapse }: SidebarProps) {
         {filteredNavItems.map((item) => (
           <NavItem key={item.path} item={item} collapsed={collapsed} />
         ))}
+
+        {filteredCareSupport.length > 0 && (
+          <>
+            {!collapsed && (
+              <div className="px-3 pt-5 pb-1">
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#a8a49a" }}>
+                  {t("nav.careSupport")}
+                </p>
+              </div>
+            )}
+            <div className="pt-1" style={{ borderTop: "1px solid rgba(0,0,0,0.04)" }}>
+              {filteredCareSupport.map((item) => (
+                <NavItem key={item.path} item={item} collapsed={collapsed} />
+              ))}
+            </div>
+          </>
+        )}
 
         {filteredAdminItems.length > 0 && (
           <>

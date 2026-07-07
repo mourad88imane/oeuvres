@@ -36,6 +36,7 @@ class PartnerAdmin(SimpleHistoryAdmin):
         "email",
         "phone",
         "contact_name",
+        "medical_provider_link",
     ]
     list_filter = ["type", "is_active", "wilaya"]
     search_fields = ["code", "name", "email", "contact_name"]
@@ -51,6 +52,15 @@ class PartnerAdmin(SimpleHistoryAdmin):
         ("Personne de contact", {"fields": ["contact_name", "contact_phone", "contact_email"]}),
         ("Notes", {"fields": ["notes", "metadata"]}),
     ]
+
+    def medical_provider_link(self, obj):
+        mp = getattr(obj, "medical_provider", None)
+        if mp:
+            from django.utils.html import format_html
+            url = f"/admin/medical_coverage/medicalprovider/{mp.pk}/change/"
+            return format_html('<a href="{}">{}</a>', url, mp.name)
+        return "—"
+    medical_provider_link.short_description = "Prestataire médical"
 
 
 @admin.register(Convention)

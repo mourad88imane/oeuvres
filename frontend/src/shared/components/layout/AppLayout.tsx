@@ -53,6 +53,18 @@ export function AppLayout() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const next = i18n.language?.startsWith("ar") ? "fr" : "ar";
+                i18n.changeLanguage(next);
+                try { localStorage.setItem("i18nextLng", next); } catch {}
+              }}
+              className="px-2 py-1 text-xs font-bold rounded-lg transition-colors hover:bg-black/5"
+              style={{ color: "#8a8882" }}
+              title={i18n.language?.startsWith("ar") ? "Français" : "العربية"}
+            >
+              {i18n.language?.startsWith("ar") ? "FR" : "AR"}
+            </button>
             <NotificationBell />
             <div className={`flex items-center gap-2 ${isRtl ? "pr-3" : "pl-3"}`} style={{ [isRtl ? "borderRight" : "borderLeft"]: "1px solid rgba(0,0,0,0.06)" }}>
               <div

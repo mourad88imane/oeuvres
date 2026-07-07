@@ -89,10 +89,11 @@ class Employee(BaseModel):
     department = models.ForeignKey(
         "departments.Department",
         on_delete=models.PROTECT,
+        null=True, blank=True,
         related_name="employees",
         verbose_name="Département",
     )
-    job_title = models.CharField(max_length=150, verbose_name="Intitulé du poste")
+    job_title = models.CharField(max_length=150, blank=True, default="", verbose_name="Intitulé du poste")
     grade = models.CharField(max_length=100, blank=True, verbose_name="Grade")
     grade_level = models.PositiveSmallIntegerField(
         null=True, blank=True, verbose_name="Niveau grade"
@@ -138,7 +139,7 @@ class Employee(BaseModel):
     )
 
     # Dates RH
-    date_hired = models.DateField(verbose_name="Date d'embauche")
+    date_hired = models.DateField(null=True, blank=True, verbose_name="Date d'embauche")
     date_end = models.DateField(null=True, blank=True, verbose_name="Date fin contrat")
     date_retired = models.DateField(null=True, blank=True, verbose_name="Date retraite")
     date_promoted = models.DateField(null=True, blank=True, verbose_name="Dernière promotion")

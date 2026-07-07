@@ -15,9 +15,18 @@ class MedicalCoverageTypeAdmin(SimpleHistoryAdmin):
 
 @admin.register(MedicalProvider)
 class MedicalProviderAdmin(SimpleHistoryAdmin):
-    list_display = ["name", "type", "city", "is_active"]
+    list_display = ["name", "type", "city", "is_active", "partner_link"]
     list_filter = ["type", "is_active", "city"]
-    search_fields = ["name", "city", "phone"]
+    search_fields = ["name", "city", "phone", "partner__code", "partner__name"]
+    raw_id_fields = ["partner"]
+
+    def partner_link(self, obj):
+        if obj.partner_id:
+            from django.utils.html import format_html
+            url = f"/admin/conventions/partner/{obj.partner_id}/change/"
+            return format_html('<a href="{}">{}</a>', url, obj.partner.name)
+        return "—"
+    partner_link.short_description = "Partenaire"
 
 
 @admin.register(MedicalCoverageVoucher)

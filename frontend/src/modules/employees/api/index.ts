@@ -5,7 +5,7 @@ import apiClient from "@shared/api/apiClient";
 import type {
   Employee, EmployeeListItem, EmployeeCreatePayload, EmployeeUpdatePayload,
   EmployeeFilters, EmployeeStatistics, Beneficiary, BeneficiaryCreatePayload,
-  PaginatedResponse, HistoryRecord,
+  PaginatedResponse, HistoryRecord, BusinessHistoryRecord,
 } from "../types";
 
 // ── Nettoyage des filtres (supprime les valeurs vides) ───
@@ -51,10 +51,16 @@ export const employeeApi = {
   changeStatus: (id: string, status: string, reason?: string) =>
     apiClient.post(`/employees/${id}/change-status/`, { status, reason }),
 
-  // ── Historique ───────────────────────────────────────
+  // ── Historique technique ─────────────────────────────
   getHistory: (id: string) =>
     apiClient.get<{ status: string; count: number; data: HistoryRecord[] }>(
       `/employees/${id}/history/`
+    ),
+
+  // ── Historique métier ────────────────────────────────
+  getBusinessHistory: (id: string) =>
+    apiClient.get<{ status: string; count: number; data: BusinessHistoryRecord[] }>(
+      `/employees/${id}/business-history/`
     ),
 
   // ── Statistiques ─────────────────────────────────────

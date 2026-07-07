@@ -2,8 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
-
+from django.db import models
 from django.shortcuts import get_object_or_404
 
 from core.permissions import IsAdminOrGestionnaire, IsStaff
@@ -179,6 +178,22 @@ class MedicalCoverageVoucherViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         summary = self.service.get_employee_coverage_summary(employee_id, coverage_type)
         dependents = self.service.get_dependents_summary(employee_id, coverage_type)
 
+        # Also include beneficiaries without prior vouchers
+        from apps.beneficiaries.models import Beneficiary
+        voucher_dep_ids = {d["id"] for d in dependents}
+        for b in Beneficiary.objects.filter(employee_id=employee_id, is_deleted=False):
+            b_id = str(b.id)
+            if b_id not in voucher_dep_ids:
+                dependents.append({
+                    "id": b_id,
+                    "full_name": f"{b.first_name} {b.last_name}",
+                    "relationship": b.relationship,
+                    "relationship_display": b.get_relationship_display(),
+                    "last_voucher_date": None,
+                    "last_voucher_reference": None,
+                    "count_last_3_months": 0,
+                })
+
         engine = EligibilityEngine(MedicalCoverageVoucher)
         if coverage_type:
             ct = get_object_or_404(MedicalCoverageType, code=coverage_type)
@@ -291,12 +306,33 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         stats = self.service.get_statistics(category)
         return Response({"status": "success", "data": stats})
 
+    @action(detail=False, methods=["get"])
+    def employee_eligibility(self, request):
+        employee_id = request.query_params.get("employee_id")
+        category = request.query_params.get("category")
+        if not employee_id or not category:
+            return Response(
+                {"status": "error", "message": "employee_id and category are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        result = self.service.check_employee_eligibility(employee_id, category)
+        if result is None:
+            return Response(
+                {"status": "error", "message": "Employee not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response({"status": "success", "data": result})
+
     @action(detail=True, methods=["get"])
     def pdf(self, request, pk=None):
+        import logging
         from django.http import HttpResponse
         from django.template.loader import render_to_string
+        from django.template.exceptions import TemplateDoesNotExist
         from weasyprint import HTML
         import tempfile, os
+
+        logger = logging.getLogger(__name__)
 
         request_obj = get_object_or_404(
             MedicalCoverageRequest.objects.select_related(
@@ -315,22 +351,44 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
             "request_number": request_obj.request_number,
         }
 
-        template_map = {
-            "imaging_center": "medical_coverage/voucher_pdf_imaging.html",
-            "analysis_lab": "medical_coverage/voucher_pdf_lab.html",
-            "medical_center": "medical_coverage/voucher_pdf_center.html",
-        }
-        partner_template = getattr(request_obj.partner, "pdf_template", "default")
-        template_name = template_map.get(partner_template, "medical_coverage/voucher_pdf.html")
+        template_name = "medical_coverage/voucher_pdf.html"
 
-        html = render_to_string(template_name, ctx)
+        try:
+            html = render_to_string(template_name, ctx)
+        except TemplateDoesNotExist:
+            logger.error("PDF template '%s' not found", template_name)
+            return Response(
+                {"error": "Template PDF introuvable"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-            HTML(string=html).write_pdf(f.name)
-            f.seek(0)
-            pdf_content = f.read()
-            os.unlink(f.name)
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                HTML(string=html).write_pdf(f.name)
+                f.seek(0)
+                pdf_content = f.read()
+                os.unlink(f.name)
+        except Exception as e:
+            logger.error("PDF generation failed for request %s: %s", pk, e)
+            return Response(
+                {"error": "Erreur lors de la génération du PDF"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # Track this as a print event
+        try:
+            from apps.medical_coverage.models import MedicalCoverageRequest as MCR
+            MCR.objects.filter(id=pk).update(
+                printed_at=timezone.now(),
+                print_count=models.F("print_count") + 1,
+            )
+        except Exception:
+            pass
+
+        mode = request.query_params.get("mode", "download")
+        filename = f"{request_obj.request_number}.pdf"
+        disposition = "inline" if mode == "preview" else f'attachment; filename="{filename}"'
 
         resp = HttpResponse(pdf_content, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="{request_obj.request_number}.pdf"'
+        resp["Content-Disposition"] = disposition
         return resp

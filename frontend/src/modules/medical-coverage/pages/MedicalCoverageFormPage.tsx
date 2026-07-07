@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@shared/components/ui/index";
 import { medicalCoverageApi } from "../api";
-import type { MedicalCoverageCreatePayload, EmployeeInfoResponse, MedicalProvider, CoverageSummary, DependentSummary } from "../types";
+import type { MedicalCoverageCreatePayload, EmployeeInfoResponse, MedicalProvider } from "../types";
 import { VOUCHER_STATUS_UI } from "../types";
 import { employeeApi } from "@modules/employees/api";
 import type { EmployeeListItem } from "@modules/employees/types";
@@ -45,7 +44,6 @@ interface VoucherHistoryItem {
 }
 
 export function MedicalCoverageFormPage({ coverageType }: Props) {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
@@ -108,7 +106,7 @@ export function MedicalCoverageFormPage({ coverageType }: Props) {
         page_size: 20,
         ordering: "-request_date",
       });
-      setVoucherHistory(res.results ?? []);
+      setVoucherHistory(res.data?.results ?? []);
     } catch { }
     setHistoryLoading(false);
   };
@@ -132,8 +130,6 @@ export function MedicalCoverageFormPage({ coverageType }: Props) {
       observations: "",
     },
   });
-
-  const requestDate = watch("request_date");
 
   // ── Create mutation ─────────────────────────────────────
   const createMutation = useMutation({
@@ -180,7 +176,6 @@ export function MedicalCoverageFormPage({ coverageType }: Props) {
   };
 
   // ── Derived data ───────────────────────────────────────
-  const currentBeneficiary = employeeInfo?.dependents.find(d => d.id === selectedDependent);
   const summary = employeeInfo?.summary;
   const eligibility = employeeInfo?.eligibility;
 
@@ -621,7 +616,7 @@ export function MedicalCoverageFormPage({ coverageType }: Props) {
                       </thead>
                       <tbody>
                         {voucherHistory.map((v: any) => {
-                          const statusUI = VOUCHER_STATUS_UI[v.workflow_state] || VOUCHER_STATUS_UI.draft;
+                          const statusUI = VOUCHER_STATUS_UI[v.workflow_state as keyof typeof VOUCHER_STATUS_UI] || VOUCHER_STATUS_UI.draft;
                           return (
                             <tr key={v.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.03)" }}>
                               <td className="px-3 py-2 font-bold" style={{ color: "#1a1917" }}>{v.reference}</td>

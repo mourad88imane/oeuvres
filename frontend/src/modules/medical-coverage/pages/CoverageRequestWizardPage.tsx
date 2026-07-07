@@ -64,6 +64,20 @@ export function CoverageRequestWizardPage() {
   const [vouchersLoading, setVouchersLoading] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [printLoading, setPrintLoading] = useState(false);
+  const [hasActiveConvention, setHasActiveConvention] = useState<boolean | null>(null);
+  const [checkingConvention, setCheckingConvention] = useState(false);
+
+  useEffect(() => {
+    if (!partnerId) {
+      setHasActiveConvention(null);
+      return;
+    }
+    setCheckingConvention(true);
+    apiClient.get(`/conventions/partners/${partnerId}/has_active_convention/`)
+      .then(r => setHasActiveConvention(r.data.has_active_convention))
+      .catch(() => setHasActiveConvention(false))
+      .finally(() => setCheckingConvention(false));
+  }, [partnerId]);
 
   const createMut = useCreateCoverageRequest();
   const { data: partnersData } = usePartners({ is_active: "true", page_size: "200" });
@@ -102,6 +116,10 @@ export function CoverageRequestWizardPage() {
   };
 
   const handleFinish = async () => {
+    if (hasActiveConvention === false) {
+      message.error(t("coverageWizard.noActiveConvention"));
+      return;
+    }
     try {
       const payload: any = {
         category,
@@ -135,7 +153,7 @@ export function CoverageRequestWizardPage() {
   };
 
   const canNext = () => {
-    if (current === 0) return !!category && !!partnerId;
+    if (current === 0) return !!category && !!partnerId && hasActiveConvention === true;
     if (current === 1) return !!employeeId;
     return true;
   };
@@ -261,6 +279,14 @@ export function CoverageRequestWizardPage() {
                 }}
               />
             </div>
+            {partnerId && hasActiveConvention === false && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+                {t("coverageWizard.noActiveConvention")}
+              </div>
+            )}
+            {partnerId && checkingConvention && (
+              <div className="text-sm text-gray-400">{t("common.loading")}</div>
+            )}
           </div>
         )}
 

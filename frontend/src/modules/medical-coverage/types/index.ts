@@ -95,6 +95,8 @@ export interface EmployeeInfo {
   department: string;
   position: string;
   status: string;
+  marital_status?: string;
+  marital_status_display?: string;
 }
 
 export interface CoverageSummary {
@@ -102,6 +104,7 @@ export interface CoverageSummary {
   last_voucher_reference: string | null;
   last_voucher_date: string | null;
   last_voucher_type: string | null;
+  last_voucher_provider: string | null;
   count_last_3_months: number;
   count_current_year: number;
 }

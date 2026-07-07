@@ -290,6 +290,8 @@ class EmployeeCreateSerializer(BaseModelSerializer):
     def validate_date_hired(self, value):
         from datetime import date
 
+        if not value:
+            return value
         if value > date.today():
             raise serializers.ValidationError("La date d'embauche ne peut pas être dans le futur.")
         return value

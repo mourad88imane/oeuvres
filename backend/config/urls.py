@@ -55,6 +55,10 @@ urlpatterns = [
                     "medical-coverage/",
                     include("apps.medical_coverage.urls", namespace="medical_coverage"),
                 ),
+                path(
+                    "invoicing/",
+                    include("apps.invoicing.urls", namespace="invoicing"),
+                ),
                 path("admin/", include("apps.administration.urls", namespace="administration")),
         path("organization/", include("apps.organization.urls", namespace="organization")),
                 path("tenants/", include("shared.tenant.api.urls", namespace="tenant")),

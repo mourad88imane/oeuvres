@@ -16,6 +16,7 @@ class Partner(BaseModel):
     class Type(models.TextChoices):
         HOSPITAL = "hospital", "Établissement hospitalier"
         CLINIC = "clinic", "Clinique"
+        IMAGING_CENTER = "imaging_center", "Centre d'imagerie médicale"
         PHARMACY = "pharmacy", "Pharmacie"
         LAB = "lab", "Laboratoire d'analyses"
         SCHOOL = "school", "Établissement scolaire"
@@ -105,6 +106,25 @@ class Convention(BaseModel):
         MANUAL = "manual", "Reconduction expresse"
         NONE = "none", "Non reconductible"
 
+    COVERED_SERVICE_CHOICES = [
+        ("consultation", "Consultation médicale"),
+        ("specialized_consultation", "Consultation spécialisée"),
+        ("analysis", "Analyses médicales"),
+        ("imaging", "Imagerie médicale"),
+        ("radiology", "Radiologie"),
+        ("ultrasound", "Échographie"),
+        ("mri", "IRM"),
+        ("scanner", "Scanner"),
+        ("hospitalization", "Hospitalisation"),
+        ("surgery", "Chirurgie"),
+        ("dental", "Soins dentaires"),
+        ("ophthalmology", "Ophtalmologie"),
+        ("physiotherapy", "Kinésithérapie"),
+        ("pharmacy", "Pharmacie"),
+        ("prosthesis", "Prothèses et appareillage"),
+        ("other", "Autres prestations"),
+    ]
+
     reference = models.CharField(
         max_length=30, unique=True, editable=False, verbose_name="Référence"
     )
@@ -147,6 +167,9 @@ class Convention(BaseModel):
     )
 
     ai_metadata = models.JSONField(default=dict, blank=True, verbose_name="Données AI")
+    covered_services = models.JSONField(
+        default=list, blank=True, verbose_name="Prestations couvertes"
+    )
     analytics_data = models.JSONField(default=dict, blank=True, verbose_name="Données analytiques")
 
     class Meta:

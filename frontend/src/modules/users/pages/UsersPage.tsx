@@ -1,9 +1,11 @@
 /**
  * USERS PAGE — Gestion des utilisateurs (admin seulement)
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, UserX, UserCheck, Edit2 } from "lucide-react";
+import { Plus, Search, UserX, UserCheck, Edit2, Loader2 } from "lucide-react";
+import apiClient from "@shared/api/apiClient";
 
 interface UserItem {
   id: string;
@@ -12,28 +14,33 @@ interface UserItem {
   role: string;
   is_active: boolean;
   last_login: string | null;
-  date_joined: string;
+  date_joined?: string;
 }
 
 const ROLE_CONFIG: Record<string, { labelKey: string; classes: string }> = {
-  admin:        { labelKey: "users.admin",        classes: "bg-red-100 text-red-700" },
-  gestionnaire: { labelKey: "users.gestionnaire", classes: "bg-blue-100 text-blue-700" },
-  comptable:    { labelKey: "users.comptable",    classes: "bg-purple-100 text-purple-700" },
-  consultant:   { labelKey: "users.consultant",   classes: "bg-gray-100 text-gray-700" },
+  admin:             { labelKey: "users.admin",             classes: "bg-red-100 text-red-700" },
+  gestionnaire:      { labelKey: "users.gestionnaire",      classes: "bg-blue-100 text-blue-700" },
+  comptable:         { labelKey: "users.comptable",         classes: "bg-purple-100 text-purple-700" },
+  consultant:        { labelKey: "users.consultant",        classes: "bg-gray-100 text-gray-700" },
+  social_agent:      { labelKey: "users.social_agent",      classes: "bg-teal-100 text-teal-700" },
+  department_manager:{ labelKey: "users.department_manager",classes: "bg-amber-100 text-amber-700" },
+  committee_member:  { labelKey: "users.committee_member",  classes: "bg-indigo-100 text-indigo-700" },
+  director:          { labelKey: "users.director",          classes: "bg-orange-100 text-orange-700" },
 };
-
-const MOCK_USERS: UserItem[] = [
-  { id: "1", email: "admin@oeuvres.dz",        full_name: "Administrateur Système", role: "admin",        is_active: true,  last_login: "2024-12-05T09:30:00Z", date_joined: "2023-01-15" },
-  { id: "2", email: "gestionnaire@oeuvres.dz", full_name: "Amina Bensalem",         role: "gestionnaire", is_active: true,  last_login: "2024-12-04T14:22:00Z", date_joined: "2023-03-20" },
-  { id: "3", email: "comptable@oeuvres.dz",    full_name: "Karim Taleb",            role: "comptable",    is_active: true,  last_login: "2024-12-05T08:15:00Z", date_joined: "2023-02-10" },
-  { id: "4", email: "consultant@oeuvres.dz",   full_name: "Leila Ferhat",           role: "consultant",   is_active: true,  last_login: "2024-12-01T11:00:00Z", date_joined: "2023-06-01" },
-  { id: "5", email: "inactive@oeuvres.dz",     full_name: "Ahmed Inactif",          role: "gestionnaire", is_active: false, last_login: "2024-10-10T09:00:00Z", date_joined: "2022-11-01" },
-];
 
 export function UsersPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [users, setUsers] = useState<UserItem[]>(MOCK_USERS);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient.get("/users/", { params: { page_size: 200 } })
+      .then((r) => setUsers(r.data?.results ?? []))
+      .catch(() => setUsers([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = users.filter(
     (u) =>
@@ -48,7 +55,7 @@ export function UsersPage() {
     );
   };
 
-  const formatDate = (iso: string | null) =>
+  const formatDate = (iso: string | null | undefined) =>
     iso
       ? new Date(iso).toLocaleDateString("fr-DZ", { day: "2-digit", month: "short", year: "numeric" })
       : t("common.never");
@@ -63,7 +70,9 @@ export function UsersPage() {
             {filtered.length} {t("common.totalItems", { count: filtered.length })}
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg
+        <button
+          onClick={() => navigate("/users/new")}
+          className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg
           text-sm hover:bg-brand-light transition-colors">
           <Plus className="w-4 h-4" />
           {t("users.add")}
@@ -98,7 +107,16 @@ export function UsersPage() {
         />
       </div>
 
-      {/* ── Tableau ──────────────────────────────── */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          {t("common.loading")}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card py-16 text-center text-gray-400 text-sm">
+          {t("users.noUsers")}
+        </div>
+      ) : (
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -132,14 +150,14 @@ export function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleCfg?.classes}`}>
-                        {roleCfg?.label || u.role}
+                        {t(roleCfg?.labelKey) || u.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
                       {formatDate(u.last_login)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
-                      {formatDate(u.date_joined)}
+                      {u.date_joined ? formatDate(u.date_joined) : "-"}
                     </td>
                     <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full
@@ -174,6 +192,7 @@ export function UsersPage() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

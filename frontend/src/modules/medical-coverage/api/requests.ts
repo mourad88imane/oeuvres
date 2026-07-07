@@ -1,5 +1,6 @@
 import apiClient from "@shared/api/apiClient";
 import type {
+  EmployeeEligibilityResponse,
   MedicalCoverageRequest,
   MedicalCoverageRequestCreatePayload,
   RequestStatistics,
@@ -38,6 +39,12 @@ export const coverageRequestApi = {
   statistics: (params?: { category?: string }) =>
     apiClient.get<{ status: string; data: RequestStatistics }>(
       "/medical-coverage/requests/statistics/", { params }
+    ),
+
+  getEmployeeEligibility: (employeeId: string, category: string) =>
+    apiClient.get<{ status: string; data: EmployeeEligibilityResponse }>(
+      "/medical-coverage/requests/employee_eligibility/",
+      { params: { employee_id: employeeId, category } }
     ),
 
   downloadPdf: (id: string) =>

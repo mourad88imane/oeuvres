@@ -265,3 +265,15 @@ export interface HistoryRecord {
   history_user: { id: string; name: string; email: string } | null;
   changed_fields: { field: string; old: string | null; new: string | null }[];
 }
+
+export interface BusinessHistoryRecord {
+  id: string;
+  date: string;
+  type: "benefit" | "loan" | "medical_voucher" | "medical_request";
+  type_label: string;
+  reference: string;
+  beneficiary: string;
+  status: string;
+  requested_by: string;
+  updated_at: string;
+}

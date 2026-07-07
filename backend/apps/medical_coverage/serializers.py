@@ -165,6 +165,7 @@ class MedicalCoverageRequestListSerializer(BaseModelSerializer):
             "beneficiary", "beneficiary_name",
             "coverage_date", "validation_date",
             "observation", "workflow_state", "state_label",
+            "printed_at", "print_count",
             "created_at", "created_by_name",
         ]
         read_only_fields = fields
@@ -204,6 +205,14 @@ class MedicalCoverageRequestCreateSerializer(BaseModelSerializer):
             "category", "partner", "employee", "beneficiary",
             "coverage_date", "observation",
         ]
+
+    def validate_partner(self, value):
+        from apps.conventions.models import Convention
+        if not value.conventions.filter(status=Convention.Status.ACTIVE).exists():
+            raise serializers.ValidationError(
+                "Ce partenaire n'a pas de convention active."
+            )
+        return value
 
 
 class MedicalCoverageRequestTransitionSerializer(serializers.Serializer):

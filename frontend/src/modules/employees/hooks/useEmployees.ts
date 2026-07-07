@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { employeeApi, beneficiaryApi, departmentApi } from "../api";
 import type {
   EmployeeFilters, EmployeeCreatePayload,
-  EmployeeUpdatePayload, BeneficiaryCreatePayload,
+  EmployeeUpdatePayload, BeneficiaryCreatePayload, BusinessHistoryRecord,
 } from "../types";
 
 // ── Clés de cache ──────────────────────────────────────────
@@ -17,6 +17,7 @@ export const EMPLOYEE_KEYS = {
   list:       (f: EmployeeFilters) => [...EMPLOYEE_KEYS.lists(), f] as const,
   detail:     (id: string) => [...EMPLOYEE_KEYS.all, "detail", id] as const,
   history:    (id: string) => [...EMPLOYEE_KEYS.all, "history", id] as const,
+  businessHistory: (id: string) => [...EMPLOYEE_KEYS.all, "business-history", id] as const,
   statistics: () => [...EMPLOYEE_KEYS.all, "statistics"] as const,
   beneficiaries: (employeeId: string) => ["beneficiaries", employeeId] as const,
   departments: () => ["departments"] as const,
@@ -44,13 +45,23 @@ export function useEmployee(id: string | null) {
   });
 }
 
-/** Historique des modifications. */
+/** Historique technique (audit log). */
 export function useEmployeeHistory(id: string | null) {
   return useQuery({
     queryKey: EMPLOYEE_KEYS.history(id!),
     queryFn:  () => employeeApi.getHistory(id!).then((r) => r.data),
     enabled:  !!id,
-    staleTime: 0,  // Toujours frais pour l'historique
+    staleTime: 0,
+  });
+}
+
+/** Historique métier (prestations, prêts, couvertures médicales). */
+export function useEmployeeBusinessHistory(id: string | null) {
+  return useQuery({
+    queryKey: EMPLOYEE_KEYS.businessHistory(id!),
+    queryFn:  () => employeeApi.getBusinessHistory(id!).then((r) => r.data),
+    enabled:  !!id,
+    staleTime: 1000 * 30,
   });
 }
 
