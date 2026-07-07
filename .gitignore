@@ -79,3 +79,13 @@ nginx/ssl/
 *.pem
 *.key
 *.crt
+
+# ── Deploy / Scripts divers ──────────────────────────────
+/reset_admin.py
+/unlock_axes.py
+/copy_to_vm.sh
+/deploy_vm.sh
+/deploy.ps1
+/deploy_frontend.zip
+/frontend/dist.tar.gz
+/frontend/dist.zip
