@@ -75,7 +75,10 @@ class APIMonitoringMiddleware:
 
             from .models import APIEndpointStatus
 
-            status, _ = APIEndpointStatus.objects.get_or_create(
+            # update_or_create (et non get_or_create) : sous requêtes concurrentes,
+            # get_or_create déclenche un IntegrityError « duplicate key » sur la
+            # contrainte d'unicité (endpoint, method) — bug P7 corrigé le 22/10.
+            status, _ = APIEndpointStatus.objects.update_or_create(
                 endpoint=request.path,
                 method=request.method,
             )
