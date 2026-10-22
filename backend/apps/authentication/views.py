@@ -12,14 +12,21 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from django.core.exceptions import ObjectDoesNotExist
 
 from apps.users.serializers import UserSerializer
 from django.contrib.auth import get_user_model
 from shared.ai.models import AIEvent
 from shared.audit.services import AuditService
 
-from .serializers import CustomTokenObtainPairSerializer, LogoutSerializer
+from .serializers import (
+    CustomTokenObtainPairSerializer,
+    LogoutSerializer,
+    build_user_payload,
+)
 
 User = get_user_model()
 logger = logging.getLogger("apps.authentication")
@@ -141,16 +148,31 @@ class TokenRefreshView(TokenRefreshView):
     """
     POST /api/v1/auth/token/refresh/
     Corps : { "refresh": "..." }
-    Retourne un nouveau access token + nouveau refresh token.
+    Retourne un nouveau access token + nouveau refresh token
+    + le profil utilisateur FRAIS (must_change_password, rôle, permissions).
+
+    Raison : les claims JWT sont émis au moment du login et restent périmés
+    après un changement de mot de passe — le frontend ne doit jamais
+    reconstruire l'utilisateur depuis ces claims, mais depuis ce payload.
     """
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            response.data = {
+            data = {
                 "status": "success",
                 **response.data,
             }
+            # Joindre le profil frais (état réel en base, pas les claims JWT)
+            access = response.data.get("access")
+            if access:
+                try:
+                    user_id = AccessToken(access)["user_id"]
+                    user = User.objects.get(pk=user_id)
+                    data["user"] = build_user_payload(user)
+                except (ObjectDoesNotExist, KeyError, InvalidToken):
+                    logger.exception("Failed to build fresh user payload on refresh")
+            response.data = data
         return response
 
 

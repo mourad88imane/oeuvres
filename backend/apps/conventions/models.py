@@ -126,7 +126,7 @@ class Convention(BaseModel):
     ]
 
     reference = models.CharField(
-        max_length=30, unique=True, editable=False, verbose_name="Référence"
+        max_length=30, unique=True, verbose_name="Référence"
     )
     partner = models.ForeignKey(
         Partner, on_delete=models.PROTECT, related_name="conventions", verbose_name="Partenaire"

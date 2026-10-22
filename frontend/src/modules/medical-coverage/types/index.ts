@@ -164,13 +164,17 @@ export interface MedicalCoverageFilters {
   page_size?: number;
 }
 
-export const VOUCHER_STATUS_UI: Record<VoucherStatus, { label: string; color: string; bg: string }> = {
+export const VOUCHER_STATUS_UI: Record<string, { label: string; color: string; bg: string }> = {
   draft:     { label: "Brouillon",                  color: "#6b6963", bg: "rgba(138,136,130,0.1)" },
   submitted: { label: "Soumise",                    color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
   pending_approval: { label: "En attente d'approbation", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
+  pending_manager_approval: { label: "En attente du chef de service", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
   pending_director_approval: { label: "En attente du directeur", color: "#ec4899", bg: "rgba(236,72,153,0.1)" },
   approved:  { label: "Approuvée",                  color: "#16a34a", bg: "rgba(34,197,94,0.1)" },
+  validated: { label: "Validée",                    color: "#166534", bg: "#dcfce7" },
   rejected:  { label: "Rejetée",                    color: "#dc2626", bg: "rgba(239,68,68,0.1)" },
   cancelled: { label: "Annulée",                    color: "#8a8882", bg: "rgba(138,136,130,0.08)" },
+  printed:   { label: "Imprimée",                   color: "#1e40af", bg: "#dbeafe" },
   consumed:  { label: "Consommée",                  color: "#9333ea", bg: "rgba(147,51,234,0.1)" },
+  closed:    { label: "Clôturée",                   color: "#4d4b46", bg: "rgba(138,136,130,0.08)" },
 };

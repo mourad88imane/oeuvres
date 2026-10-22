@@ -1,13 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Tabs, Form, Input, Select, DatePicker, Button, Card, message, Upload } from "antd";
+import { Tabs, Form, Input, Select, DatePicker, Button, Card, message, Upload, Alert } from "antd";
 import { ArrowLeft, Save, FileText, ClipboardList, User } from "lucide-react";
 import { useCreateConvention, usePartners } from "../api";
 
 const { TextArea } = Input;
 const { Option } = Select;
 const { Dragger } = Upload;
+
+const TAB_FIELDS: Record<string, string[]> = {
+  required: ["partner", "reference", "signed_date", "start_date", "end_date", "status", "renewal_mode"],
+  details: ["title", "covered_services", "description"],
+  followup: ["notes"],
+};
 
 const COVERED_SERVICES = [
   { value: "consultation", label: "Consultation médicale" },
@@ -37,6 +43,18 @@ export function ConventionCreatePage() {
   const createMut = useCreateConvention();
   const { data: partnersData } = usePartners({ is_active: "true", page_size: "200" });
   const partners = partnersData?.results ?? [];
+  const selectedPartner = Form.useWatch("partner", form);
+  const partnerLocked = !selectedPartner;
+
+  const onFinishFailed = ({ errorFields }: { errorFields: { name: (string | number)[] }[] }) => {
+    const firstErrField = errorFields?.[0]?.name?.[0];
+    if (!firstErrField) return;
+    const tab = Object.entries(TAB_FIELDS).find(([, fields]) =>
+      (fields as string[]).includes(String(firstErrField))
+    )?.[0];
+    // Never jump to a tab that is still locked behind partner selection.
+    if (tab && (tab === "required" || !partnerLocked)) setActiveTab(tab);
+  };
 
   const onSubmit = async () => {
     try {
@@ -51,8 +69,30 @@ export function ConventionCreatePage() {
       await createMut.mutateAsync(payload as never);
       message.success(t("conventions.created"));
       navigate("/conventions");
-    } catch {
-      // handled by form
+    } catch (err: any) {
+      // Erreurs serveur (enveloppe API : { status, code, message, errors })
+      const data = err?.response?.data;
+      const fieldErrors: Record<string, unknown> = data?.errors;
+      if (fieldErrors && typeof fieldErrors === "object") {
+        const nonField = fieldErrors.non_field_errors;
+        if (Array.isArray(nonField) && nonField.length > 0) {
+          message.error(String(nonField[0]));
+        }
+        const serverErrors = Object.entries(fieldErrors)
+          .filter(
+            ([field, msgs]) =>
+              field !== "non_field_errors" &&
+              Array.isArray(msgs) &&
+              (msgs as unknown[]).length > 0
+          )
+          .map(([field, msgs]) => ({ name: field, errors: (msgs as string[]).map(String) }));
+        if (serverErrors.length) form.setFields(serverErrors);
+        if (!serverErrors.length && !(Array.isArray(nonField) && nonField.length > 0)) {
+          message.error((data?.message as string) || t("conventions.createError"));
+        }
+      } else {
+        message.error((data?.message as string) || t("conventions.createError"));
+      }
     }
   };
 
@@ -76,7 +116,7 @@ export function ConventionCreatePage() {
           </div>
         </div>
 
-        <Form form={form} layout="vertical" onFinish={onSubmit}>
+        <Form form={form} layout="vertical" onFinish={onSubmit} onFinishFailed={onFinishFailed}>
           <Tabs activeKey={activeTab} onChange={setActiveTab} type="card" size="large"
             items={[
               {
@@ -84,11 +124,11 @@ export function ConventionCreatePage() {
                 label: <span className="flex items-center gap-2"><User className="w-4 h-4" />{t("conventions.tabRequired")}</span>,
                 children: (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <Form.Item name="partner" label={t("conventions.partner")}
+                    <Form.Item name="partner" label={t("conventions.partner")} className="md:col-span-2"
                       rules={[{ required: true, message: t("validation.required") }]}>
                       <Select showSearch placeholder={t("conventions.selectPartner")}
                         filterOption={(input, option) =>
-                          (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                          String(option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                         }>
                         {partners.map((p: any) => (
                           <Option key={p.id} value={p.id} label={`[${p.code}] ${p.name}`}>
@@ -97,30 +137,51 @@ export function ConventionCreatePage() {
                         ))}
                       </Select>
                     </Form.Item>
-                    <div />
-                    <Form.Item name="title" label={t("conventions.title")}
-                      rules={[{ required: true, message: t("validation.required") }]}>
-                      <Input placeholder={t("conventions.exTitle")} />
+                    {partnerLocked && (
+                      <Alert className="md:col-span-2" type="info" showIcon
+                        message={t("conventions.selectPartnerFirst")} />
+                    )}
+                    <Form.Item name="reference" label={t("conventions.conventionNumber")}>
+                      <Input disabled={partnerLocked} placeholder={t("conventions.conventionNumberPlaceholder")} />
                     </Form.Item>
-                    <div />
+                    <Form.Item name="signed_date" label={t("conventions.conventionDate")}>
+                      <DatePicker disabled={partnerLocked} className="w-full" format="YYYY-MM-DD" />
+                    </Form.Item>
                     <Form.Item name="start_date" label={t("conventions.startDate")}
                       rules={[{ required: true, message: t("validation.required") }]}>
-                      <DatePicker className="w-full" format="YYYY-MM-DD" />
+                      <DatePicker disabled={partnerLocked} className="w-full" format="YYYY-MM-DD" />
                     </Form.Item>
                     <Form.Item name="end_date" label={t("conventions.endDate")}
                       rules={[{ required: true, message: t("validation.required") }]}>
-                      <DatePicker className="w-full" format="YYYY-MM-DD" />
+                      <DatePicker disabled={partnerLocked} className="w-full" format="YYYY-MM-DD" />
+                    </Form.Item>
+                    <Form.Item name="status" label={t("conventions.status")}>
+                      <Select disabled={partnerLocked} placeholder={t("conventions.selectStatus")} allowClear>
+                        <Option value="draft">{t("conventions.draft")}</Option>
+                        <Option value="active">{t("conventions.active")}</Option>
+                        <Option value="suspended">{t("conventions.suspended")}</Option>
+                        <Option value="expired">{t("conventions.expired")}</Option>
+                      </Select>
+                    </Form.Item>
+                    <Form.Item name="renewal_mode" label={t("conventions.renewalMode")}>
+                      <Select disabled={partnerLocked}>
+                        <Option value="manual">{t("conventions.expressRenewal")}</Option>
+                        <Option value="auto">{t("conventions.tacitRenewal")}</Option>
+                        <Option value="none">{t("conventions.nonRenewable")}</Option>
+                      </Select>
                     </Form.Item>
                   </div>
                 ),
               },
               {
                 key: "details",
+                disabled: partnerLocked,
                 label: <span className="flex items-center gap-2"><ClipboardList className="w-4 h-4" />{t("conventions.tabDetails")}</span>,
                 children: (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <Form.Item name="description" label={t("conventions.description")}>
-                      <TextArea rows={3} />
+                    <Form.Item name="title" label={t("conventions.title")}
+                      rules={[{ required: true, message: t("validation.required") }]}>
+                      <Input placeholder={t("conventions.exTitle")} />
                     </Form.Item>
                     <Form.Item name="covered_services" label={t("conventions.coveredServices")}>
                       <Select mode="multiple" placeholder={t("conventions.selectCoveredServices")}
@@ -130,44 +191,26 @@ export function ConventionCreatePage() {
                         ))}
                       </Select>
                     </Form.Item>
-                    <Form.Item name="signed_date" label={t("conventions.signedDate")}>
-                      <DatePicker className="w-full" format="YYYY-MM-DD" />
-                    </Form.Item>
-                    <Form.Item name="reference" label={t("conventions.referenceNumber")}>
-                      <Input placeholder={t("conventions.referencePlaceholder")} />
-                    </Form.Item>
-                    <Form.Item label={t("conventions.pdfDocument")}>
-                      <Dragger beforeUpload={(file) => { setPdfFile(file); return false; }}
-                        accept=".pdf" maxCount={1}>
-                        <p className="text-sm">{pdfFile ? pdfFile.name : t("conventions.uploadPdf")}</p>
-                      </Dragger>
+                    <Form.Item name="description" label={t("conventions.description")} className="md:col-span-2">
+                      <TextArea rows={3} />
                     </Form.Item>
                   </div>
                 ),
               },
               {
                 key: "followup",
+                disabled: partnerLocked,
                 label: <span className="flex items-center gap-2"><FileText className="w-4 h-4" />{t("conventions.tabFollowup")}</span>,
                 children: (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <Form.Item name="status" label={t("conventions.status")}>
-                      <Select placeholder={t("conventions.selectStatus")} allowClear>
-                        <Option value="draft">{t("conventions.draft")}</Option>
-                        <Option value="active">{t("conventions.active")}</Option>
-                        <Option value="suspended">{t("conventions.suspended")}</Option>
-                        <Option value="expired">{t("conventions.expired")}</Option>
-                      </Select>
-                    </Form.Item>
-                    <div />
-                    <Form.Item name="renewal_mode" label={t("conventions.renewalMode")}>
-                      <Select>
-                        <Option value="manual">{t("conventions.expressRenewal")}</Option>
-                        <Option value="auto">{t("conventions.tacitRenewal")}</Option>
-                        <Option value="none">{t("conventions.nonRenewable")}</Option>
-                      </Select>
-                    </Form.Item>
                     <Form.Item name="notes" label={t("conventions.notes")}>
                       <TextArea rows={3} />
+                    </Form.Item>
+                    <Form.Item label={t("conventions.pdfDocument")}>
+                      <Dragger beforeUpload={(file) => { setPdfFile(file); return false; }}
+                        accept=".pdf" maxCount={1}>
+                        <p className="text-sm">{pdfFile ? pdfFile.name : t("conventions.uploadPdf")}</p>
+                      </Dragger>
                     </Form.Item>
                   </div>
                 ),

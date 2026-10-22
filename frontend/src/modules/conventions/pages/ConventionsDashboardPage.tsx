@@ -51,7 +51,7 @@ export function ConventionsDashboardPage() {
             className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className="w-4 h-4" />
           </button>
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="convention.create">
             <button onClick={() => navigate("/conventions/new")}
               className="flex items-center gap-2 px-3 py-2 bg-brand text-white text-sm rounded-lg hover:bg-blue-800">
               <Plus className="w-4 h-4" />{t("conventions.newConvention")}

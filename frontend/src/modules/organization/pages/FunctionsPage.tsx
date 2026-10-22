@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Card, Modal, Form, Input, InputNumber, Switch, Table, Space, Popconfirm, message } from "antd";
 import { Plus, Edit2, Trash2, Briefcase } from "lucide-react";
 import { fetchFunctions, createFunction, updateFunction, deleteFunction, type FunctionItem } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 export function FunctionsPage() {
   const { t } = useTranslation();
@@ -59,10 +60,14 @@ export function FunctionsPage() {
       title: t("functions.actions"), key: "actions", width: 100,
       render: (_: any, r: FunctionItem) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(r)} />
-          <Popconfirm title={t("functions.confirmDelete")} onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_system_params">
+            <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(r)} />
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_system_params">
+            <Popconfirm title={t("functions.confirmDelete")} onConfirm={() => handleDelete(r.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -80,9 +85,11 @@ export function FunctionsPage() {
             <p className="text-sm text-gray-500">{t("functions.pageDescription")}</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openModal()}>
-          {t("functions.newFunction")}
-        </Button>
+        <RoleGuard permission="admin.manage_system_params">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openModal()}>
+            {t("functions.newFunction")}
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card loading={loading}>

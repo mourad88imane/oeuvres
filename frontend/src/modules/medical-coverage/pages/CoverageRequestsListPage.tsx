@@ -1,33 +1,76 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Tabs, Tag } from "antd";
-import { Plus, RefreshCw, Activity, CheckCircle, Clock, Printer } from "lucide-react";
-import { useCoverageRequests, useCoverageRequestStatistics } from "../hooks/useCoverageRequests";
-import { REQUEST_STATUS_UI } from "../types/request";
+import { useTranslation } from "react-i18next";
+import { App as AntdApp, Button, Card, Tabs, Tag, Modal } from "antd";
+import { Plus, RefreshCw, FileEdit, Trash2, Send, Eye, AlertTriangle } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
+import { useCoverageRequests, useCoverageRequestStatistics, useDeleteCoverageRequest } from "../hooks/useCoverageRequests";
+import { coverageRequestApi } from "../api/requests";
+import { USER_STATUS_UI, BACKEND_TO_USER_STATUS, statusLabel } from "../types/request";
+import type { RequestStatus } from "../types/request";
+
+const USER_TABS = [
+  { key: "all", label: "Toutes" },
+  { key: "draft", label: "Brouillons" },
+  { key: "pending", label: "En attente" },
+  { key: "approved", label: "Approuvées" },
+  { key: "rejected", label: "Rejetées" },
+  { key: "cancelled", label: "Annulées" },
+];
+
+const isDraft = (s: string) => s === "draft";
 
 export function CoverageRequestsListPage() {
+  const { t } = useTranslation();
+  const { message } = AntdApp.useApp();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [tab, setTab] = useState("all");
-  const { data, isLoading, refetch } = useCoverageRequests(
-    tab !== "all" ? { status: tab } : {}
-  );
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const params: Record<string, unknown> = {};
+  if (tab !== "all") {
+    if (tab === "draft") params.status = "draft";
+    else if (tab === "pending") params.status__in = "submitted,pending_approval,pending_manager_approval,pending_director_approval";
+    else if (tab === "approved") params.status__in = "validated,printed";
+    else if (tab === "rejected") params.status = "rejected";
+    else if (tab === "cancelled") params.status__in = "closed,cancelled";
+  }
+
+  const { data, isLoading, refetch } = useCoverageRequests(params);
   const { data: stats } = useCoverageRequestStatistics();
+  const deleteMut = useDeleteCoverageRequest();
+
+  const submitMut = useMutation({
+    mutationFn: (id: string) =>
+      coverageRequestApi.transition(id, "submitted" as RequestStatus).then(r => r.data.data),
+    onSuccess: () => {
+      message.success("Demande soumise");
+      qc.invalidateQueries({ queryKey: ["coverage-requests"] });
+    },
+    onError: () => message.error("Erreur lors de la soumission"),
+  });
 
   const requests = data?.results ?? [];
   const pagination = data?.pagination;
 
-  const statusTabs = [
-    { key: "all", label: "Toutes" },
-    { key: "pending_manager_approval", label: "En attente" },
-    { key: "validated", label: "Validées" },
-    { key: "printed", label: "Imprimées" },
-  ];
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMut.mutateAsync(id);
+      message.success("Demande supprimée");
+      setDeleteTarget(null);
+    } catch {
+      message.error("Erreur lors de la suppression");
+    }
+  };
 
-  const kpiCards = stats ? [
-    { label: "Total", value: stats.total, icon: Activity, color: "#3b82f6" },
-    { label: "En attente", value: stats.pending, icon: Clock, color: "#f59e0b" },
-    { label: "Validées", value: stats.validated, icon: CheckCircle, color: "#16a34a" },
-    { label: "Imprimées", value: stats.printed, icon: Printer, color: "#9333ea" },
+  const kpiItems = stats ? [
+    { label: "Total", value: stats.total, color: "#3b82f6" },
+    { label: "Brouillons", value: stats.draft, color: "#6b6963" },
+    { label: "En attente", value: stats.pending, color: "#f59e0b" },
+    { label: "Approuvées", value: stats.approved, color: "#16a34a" },
+    { label: "Rejetées", value: stats.rejected, color: "#dc2626" },
   ] : [];
 
   return (
@@ -39,17 +82,19 @@ export function CoverageRequestsListPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => refetch()} />
-          <Button type="primary" onClick={() => navigate("/medical-coverage/requests/new")}
-            icon={<Plus className="w-4 h-4" />}
-            style={{ background: "#ffda2d", borderColor: "#ffda2d", color: "#1a1917" }}>
-            Nouvelle demande
-          </Button>
+          <RoleGuard permission="coverage.create">
+            <Button type="primary" onClick={() => navigate("/medical-coverage/requests/new")}
+              icon={<Plus className="w-4 h-4" />}
+              style={{ background: "#ffda2d", borderColor: "#ffda2d", color: "#1a1917" }}>
+              Nouvelle demande
+            </Button>
+          </RoleGuard>
         </div>
       </div>
 
-      {kpiCards.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {kpiCards.map(k => (
+      {kpiItems.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {kpiItems.map(k => (
             <Card key={k.label} size="small" className="text-center">
               <div className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</div>
               <p className="text-xs text-gray-500 mt-1">{k.label}</p>
@@ -59,7 +104,7 @@ export function CoverageRequestsListPage() {
       )}
 
       <Card>
-        <Tabs activeKey={tab} onChange={setTab} items={statusTabs.map(s => ({
+        <Tabs activeKey={tab} onChange={setTab} items={USER_TABS.map(s => ({
           key: s.key,
           label: s.label,
         }))} />
@@ -71,17 +116,48 @@ export function CoverageRequestsListPage() {
         ) : (
           <div className="space-y-2">
             {requests.map((r: any) => {
-              const ui = REQUEST_STATUS_UI[r.workflow_state as keyof typeof REQUEST_STATUS_UI] || {};
+              const userStatus = BACKEND_TO_USER_STATUS[r.workflow_state as keyof typeof BACKEND_TO_USER_STATUS] || "draft";
+              const ui = USER_STATUS_UI[userStatus] || USER_STATUS_UI.draft;
+              const draft = isDraft(r.workflow_state);
               return (
-                <div key={r.id} onClick={() => navigate(`/medical-coverage/requests/${r.id}`)}
-                  className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <div className="flex-1">
+                <div key={r.id}
+                  className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <div className="flex-1 cursor-pointer" onClick={() => navigate(`/medical-coverage/requests/${r.id}`)}>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm font-bold">{r.request_number}</span>
-                      <Tag color={ui.color}>{ui.label}</Tag>
+                      <Tag color={ui.color}>{statusLabel(t, ui)}</Tag>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">{r.employee_name} — {r.partner_name}</p>
                     <p className="text-xs text-gray-400">{r.category_display} | {r.coverage_date}</p>
+                  </div>
+                  <div className="flex items-center gap-1 ml-4 shrink-0">
+                    {draft ? (
+                      <>
+                        <RoleGuard permission="coverage.update">
+                          <button onClick={() => navigate(`/medical-coverage/requests/${r.id}/edit`)}
+                            className="p-2 rounded-xl hover:bg-gray-100 transition-colors" title="Modifier">
+                            <FileEdit className="w-4 h-4" style={{ color: "#6b6963" }} />
+                          </button>
+                        </RoleGuard>
+                        <RoleGuard permission="coverage.create">
+                          <button onClick={(e) => { e.stopPropagation(); submitMut.mutate(r.id); }}
+                            className="p-2 rounded-xl hover:bg-blue-50 transition-colors" title="Soumettre">
+                            <Send className="w-4 h-4" style={{ color: "#3b82f6" }} />
+                          </button>
+                        </RoleGuard>
+                        <RoleGuard permission="coverage.update">
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(r.id); }}
+                            className="p-2 rounded-xl hover:bg-red-50 transition-colors" title="Supprimer">
+                            <Trash2 className="w-4 h-4" style={{ color: "#dc2626" }} />
+                          </button>
+                        </RoleGuard>
+                      </>
+                    ) : (
+                      <button onClick={() => navigate(`/medical-coverage/requests/${r.id}`)}
+                        className="p-2 rounded-xl hover:bg-gray-100 transition-colors" title="Voir">
+                        <Eye className="w-4 h-4" style={{ color: "#6b6963" }} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -89,6 +165,22 @@ export function CoverageRequestsListPage() {
           </div>
         )}
       </Card>
+
+      <Modal
+        title="Confirmer la suppression"
+        open={!!deleteTarget}
+        onOk={() => deleteTarget && handleDelete(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+        okText="Supprimer"
+        cancelText="Annuler"
+        okButtonProps={{ danger: true }}
+        confirmLoading={deleteMut.isPending}
+      >
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-600">Cette action est irréversible. Voulez-vous vraiment supprimer cette demande ?</p>
+        </div>
+      </Modal>
     </div>
   );
 }

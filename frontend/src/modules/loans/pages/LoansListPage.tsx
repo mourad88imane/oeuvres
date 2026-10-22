@@ -54,7 +54,7 @@ export function LoansListPage() {
           <button onClick={() => refetch()} className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
-          <RoleGuard roles={["admin", "gestionnaire"]}>
+          <RoleGuard permission="loan.create">
             <button onClick={() => navigate("/loans/new")}
               className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-light">
               <Plus className="w-4 h-4" />{t("loans.newLoan")}

@@ -113,7 +113,7 @@ export interface InvoiceCreatePayload {
   due_date?: string;
   notes?: string;
   total_covered_amount?: number;
-  lines: { voucher: string; amount: number; quantity?: number; unit_price?: number; notes?: string }[];
+  coverage_request_lines: { coverage_request: string; amount: number; notes?: string }[];
 }
 
 export interface InvoiceFilters {

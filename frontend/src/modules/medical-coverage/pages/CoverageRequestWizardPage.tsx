@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Select, Steps, message, DatePicker, Input, Tag, Table } from "antd";
-import { ArrowLeft, Save, Building2, CheckCircle, Printer, FileText } from "lucide-react";
+import { App as AntdApp, Button, Card, Select, Steps, DatePicker, Input, Tag, Table } from "antd";
+import { ArrowLeft, Save, Building2, CheckCircle, FileText } from "lucide-react";
 import apiClient from "@shared/api/apiClient";
 import { fmtDate } from "@shared/utils/format";
 import { usePartners } from "@modules/conventions/api";
 import { useEmployees } from "@modules/employees/hooks/useEmployees";
 import { useCreateCoverageRequest } from "../hooks/useCoverageRequests";
 import { medicalCoverageApi } from "../api";
-import { coverageRequestApi } from "../api/requests";
 import type { MedicalCoverageVoucher } from "../types";
 
 const { TextArea } = Input;
@@ -38,17 +37,9 @@ const VOUCHER_STATUS_COLOR: Record<string, string> = {
   cancelled: "default", consumed: "purple",
 };
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 export function CoverageRequestWizardPage() {
   const { t } = useTranslation();
+  const { message } = AntdApp.useApp();
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
   const [category, setCategory] = useState<string>("");
@@ -63,7 +54,6 @@ export function CoverageRequestWizardPage() {
   const [vouchers, setVouchers] = useState<MedicalCoverageVoucher[]>([]);
   const [vouchersLoading, setVouchersLoading] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
-  const [printLoading, setPrintLoading] = useState(false);
   const [hasActiveConvention, setHasActiveConvention] = useState<boolean | null>(null);
   const [checkingConvention, setCheckingConvention] = useState(false);
 
@@ -136,19 +126,6 @@ export function CoverageRequestWizardPage() {
       setCurrent(3);
     } catch {
       message.error(t("coverageWizard.error"));
-    }
-  };
-
-  const handlePrint = async () => {
-    if (!createdId) return;
-    setPrintLoading(true);
-    try {
-      const resp = await coverageRequestApi.downloadPdf(createdId);
-      downloadBlob(resp.data, `demande-${createdId}.pdf`);
-    } catch {
-      message.error("Erreur lors du téléchargement du PDF");
-    } finally {
-      setPrintLoading(false);
     }
   };
 
@@ -444,10 +421,6 @@ export function CoverageRequestWizardPage() {
               <p className="text-sm text-gray-500 mt-1">{t("coverageWizard.requestCreatedDesc")}</p>
             </div>
             <div className="flex justify-center gap-3">
-              <Button icon={<Printer className="w-4 h-4" />} type="primary" loading={printLoading} onClick={handlePrint}
-                style={{ background: "#ffda2d", borderColor: "#ffda2d", color: "#1a1917" }}>
-                {t("coverageWizard.print")}
-              </Button>
               <Button icon={<FileText className="w-4 h-4" />}
                 onClick={() => navigate(`/medical-coverage/requests/${createdId}`)}>
                 {t("coverageWizard.viewRequest")}

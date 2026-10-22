@@ -57,7 +57,7 @@ export function BenefitsPage() {
           <button onClick={() => refetch()} className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="benefit.create">
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-light">
               <Plus className="w-4 h-4" />{t("benefits.add")}
             </button>
@@ -112,7 +112,7 @@ export function BenefitsPage() {
           <div className="flex justify-center py-16"><Spinner size="lg" /></div>
         ) : benefits.length === 0 ? (
           <EmptyState icon={Gift} title={t("benefits.noBenefits")} description={t("common.noResults")}
-            action={<RoleGuard roles={["admin","gestionnaire"]}><button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm"><Plus className="w-4 h-4" />{t("common.create")}</button></RoleGuard>}
+            action={<RoleGuard permission="benefit.create"><button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm"><Plus className="w-4 h-4" />{t("common.create")}</button></RoleGuard>}
           />
         ) : (
           benefits.map(b => <BenefitCard key={b.id} benefit={b} onClick={() => navigate(`/benefits/${b.id}`)} />)

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Search, FileText, CheckCircle, BarChart3, DollarSign, CreditCard, TrendingUp, Download } from "lucide-react";
 import { clsx } from "clsx";
 import { Spinner } from "@shared/components/ui";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { exportToExcel } from "@shared/utils/exportExcel";
 import { useInvoices, useInvoiceStatistics } from "../hooks/useInvoices";
 import { INVOICE_STATUS_UI, formatMonthYear, CATEGORY_OPTIONS, categoryLabel } from "../types";
@@ -36,47 +37,51 @@ export function InvoicesListPage() {
           <p className="text-sm font-medium mt-1" style={{ color: "#8a8882" }}>Gestion des factures mensuelles des prestataires</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => {
-              const rows = invoices.map((inv: Invoice) => ({
-                Référence: inv.reference,
-                Prestataire: inv.partner_name,
-                Catégorie: categoryLabel(inv.category || ""),
-                Mois: formatMonthYear(inv.month, inv.year),
-                "N° facture": inv.invoice_number || "",
-                "Montant TTC": inv.total_amount,
-                Lignes: inv.line_count,
-                Statut: inv.status_label,
-                "Date création": new Date(inv.created_at).toLocaleDateString("fr-FR"),
-              }));
-              exportToExcel(rows, [
-                { header: "Référence", key: "Référence", width: 20 },
-                { header: "Prestataire", key: "Prestataire", width: 30 },
-                { header: "Catégorie", key: "Catégorie", width: 18 },
-                { header: "Mois", key: "Mois", width: 14 },
-                { header: "N° facture", key: "N° facture", width: 18 },
-                { header: "Montant TTC", key: "Montant TTC", width: 16 },
-                { header: "Lignes", key: "Lignes", width: 10 },
-                { header: "Statut", key: "Statut", width: 14 },
-                { header: "Date création", key: "Date création", width: 16 },
-              ], `factures_${new Date().toISOString().slice(0, 10)}`);
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-            style={{ background: "#f5f4f0", color: "#1a1917" }}
-          >
-            <Download className="w-4 h-4" />
-            Exporter
-          </button>
-          <button
-            onClick={() => navigate("/invoicing/new")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-            style={{ background: "#ffda2d", color: "#1a1917" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-          >
-            <Plus className="w-4 h-4" />
-            Nouvelle facture
-          </button>
+          <RoleGuard permission="invoice.view">
+            <button
+              onClick={() => {
+                const rows = invoices.map((inv: Invoice) => ({
+                  Référence: inv.reference,
+                  Prestataire: inv.partner_name,
+                  Catégorie: categoryLabel(inv.category || ""),
+                  Mois: formatMonthYear(inv.month, inv.year),
+                  "N° facture": inv.invoice_number || "",
+                  "Montant TTC": inv.total_amount,
+                  Lignes: inv.line_count,
+                  Statut: inv.status_label,
+                  "Date création": new Date(inv.created_at).toLocaleDateString("fr-FR"),
+                }));
+                exportToExcel(rows, [
+                  { header: "Référence", key: "Référence", width: 20 },
+                  { header: "Prestataire", key: "Prestataire", width: 30 },
+                  { header: "Catégorie", key: "Catégorie", width: 18 },
+                  { header: "Mois", key: "Mois", width: 14 },
+                  { header: "N° facture", key: "N° facture", width: 18 },
+                  { header: "Montant TTC", key: "Montant TTC", width: 16 },
+                  { header: "Lignes", key: "Lignes", width: 10 },
+                  { header: "Statut", key: "Statut", width: 14 },
+                  { header: "Date création", key: "Date création", width: 16 },
+                ], `factures_${new Date().toISOString().slice(0, 10)}`);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+              style={{ background: "#f5f4f0", color: "#1a1917" }}
+            >
+              <Download className="w-4 h-4" />
+              Exporter
+            </button>
+          </RoleGuard>
+          <RoleGuard permission="invoice.create">
+            <button
+              onClick={() => navigate("/invoicing/new")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+              style={{ background: "#ffda2d", color: "#1a1917" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >
+              <Plus className="w-4 h-4" />
+              Nouvelle facture
+            </button>
+          </RoleGuard>
         </div>
       </div>
 

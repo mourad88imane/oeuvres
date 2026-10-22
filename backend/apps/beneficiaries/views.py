@@ -9,7 +9,7 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from apps.employees.models import Employee
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 from django.db import models
 from django.shortcuts import get_object_or_404
 
@@ -30,9 +30,7 @@ from shared.tenant.mixins import TenantViewSetMixin
 
 class BeneficiaryViewSet(TenantViewSetMixin, ModelViewSet):
     def get_permissions(self):
-        if self.action in ("list", "retrieve"):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminOrGestionnaire()]
+        return [IsAuthenticated(), HasModuleAccess("dependent")()]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -112,7 +110,7 @@ class BeneficiaryGlobalViewSet(ReadOnlyModelViewSet):
     )
     serializer_class = BeneficiarySerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("dependent")]
 
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())

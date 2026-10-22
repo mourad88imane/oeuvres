@@ -50,13 +50,13 @@ export function EmployeesPage() {
           <button onClick={() => refetch()} className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="employee.export">
             <button onClick={() => exportMutation.mutate(filters)} disabled={exportMutation.isPending}
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
               <Download className="w-4 h-4" />{t("common.export")} CSV
             </button>
           </RoleGuard>
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="employee.create">
             <button onClick={() => setShowCreate(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-light">
               <Plus className="w-4 h-4" />{t("employees.add")}
@@ -171,10 +171,10 @@ export function EmployeesPage() {
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`/employees/${emp.id}`)} className="px-2 py-1 text-xs text-brand hover:bg-blue-50 rounded">{t("employees.view")}</button>
-                        <RoleGuard roles={["admin","gestionnaire"]}>
+                        <RoleGuard permission="employee.update">
                           <button onClick={() => navigate(`/employees/${emp.id}/edit`)} className="px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 rounded">{t("common.edit")}</button>
                         </RoleGuard>
-                        <RoleGuard roles={["admin"]}>
+                        <RoleGuard permission="employee.delete">
                           <button onClick={() => setDeleteTarget(emp.id)} className="px-2 py-1 text-xs text-red-400 hover:bg-red-50 rounded">{t("common.delete")}</button>
                         </RoleGuard>
                       </div>

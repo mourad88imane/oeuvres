@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.permissions import IsAdmin
+from core.permissions import HasModuleAccess
 from core.pagination import StandardResultsSetPagination
 
 from shared.workflow.models import (
@@ -21,7 +21,7 @@ class WorkflowStateViewSet(viewsets.ModelViewSet):
     queryset = WorkflowState.objects.all()
     serializer_class = WorkflowStateSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["app_label", "model_name", "is_active", "is_initial", "is_final"]
     search_fields = ["label_fr", "label_ar", "state_id"]
     ordering_fields = ["app_label", "model_name", "display_order"]
@@ -34,7 +34,7 @@ class WorkflowTransitionViewSet(viewsets.ModelViewSet):
     ).prefetch_related("allowed_roles__role").all()
     serializer_class = WorkflowTransitionSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["app_label", "model_name", "from_state", "to_state", "is_active"]
     search_fields = ["name", "label_fr", "label_ar"]
     ordering_fields = ["app_label", "model_name", "display_order"]
@@ -69,7 +69,7 @@ class WorkflowTransitionViewSet(viewsets.ModelViewSet):
 
 
 class WorkflowModelListView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
 
     def list(self, request):
         pairs = (

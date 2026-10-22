@@ -12,6 +12,7 @@ import {
   fetchOrganizationLookup,
   type DirectionItem, type SubDirectionItem, type ServiceItem, type BureauItem,
 } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 type Level = "direction" | "sub_direction" | "service" | "bureau";
 
@@ -125,18 +126,24 @@ export function OrgStructurePage() {
       title: t("organization.actions"), key: "actions", width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(level, record)} />
+          <RoleGuard permission="admin.manage_system_params">
+            <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(level, record)} />
+          </RoleGuard>
           {level !== "bureau" && (
-            <Button size="small" icon={<Plus className="w-3 h-3" />}
-              onClick={() => openModal(
-                level === "direction" ? "sub_direction" : level === "sub_direction" ? "service" : "bureau",
-                null, record.id
-              )}
-            />
+            <RoleGuard permission="admin.manage_system_params">
+              <Button size="small" icon={<Plus className="w-3 h-3" />}
+                onClick={() => openModal(
+                  level === "direction" ? "sub_direction" : level === "sub_direction" ? "service" : "bureau",
+                  null, record.id
+                )}
+              />
+            </RoleGuard>
           )}
-          <Popconfirm title={t("organization.confirmDelete")} onConfirm={() => handleDelete(level, record.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_system_params">
+            <Popconfirm title={t("organization.confirmDelete")} onConfirm={() => handleDelete(level, record.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -216,10 +223,12 @@ export function OrgStructurePage() {
             <p className="text-sm text-gray-500">{t("organization.pageDescription")}</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />}
-          onClick={() => openModal("direction")}>
-          {t("organization.newDirection")}
-        </Button>
+        <RoleGuard permission="admin.manage_system_params">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />}
+            onClick={() => openModal("direction")}>
+            {t("organization.newDirection")}
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card title={t("organization.directions")} loading={loading}>

@@ -64,7 +64,7 @@ export function LoanDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <RoleGuard roles={["admin"]}>
+            <RoleGuard permission="loan.delete">
               <button onClick={() => setShowDelete(true)}
                 className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors">
                 <Trash2 className="w-4 h-4" /> {t("common.delete")}

@@ -5,6 +5,7 @@ import {
 import { GitMerge, Plus, Edit2, Trash2 } from "lucide-react";
 import { fetchApprovalMatrix, createApprovalMatrixEntry, updateApprovalMatrixEntry, deleteApprovalMatrixEntry } from "../api";
 import { fetchRoles } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 const MODULES = ["loans", "medical_coverage", "benefits", "conventions", "finance"];
 
@@ -80,10 +81,14 @@ export function ApprovalMatrixPage() {
       title: "Actions", key: "actions", width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
-          <Popconfirm title="Supprimer cette règle ?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_approval_matrix">
+            <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_approval_matrix">
+            <Popconfirm title="Supprimer cette règle ?" onConfirm={() => handleDelete(record.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -101,9 +106,11 @@ export function ApprovalMatrixPage() {
             <p className="text-sm text-gray-500">Seuils d'escalade par module et montant</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>
-          Nouvelle règle
-        </Button>
+        <RoleGuard permission="admin.manage_approval_matrix">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>
+            Nouvelle règle
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card>

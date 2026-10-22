@@ -123,10 +123,14 @@ apiClient.interceptors.response.use(
           refresh: refreshToken,
         });
 
-        const { access, refresh } = response.data;
+        // Le refresh renvoie désormais le profil utilisateur FRAIS
+        // (must_change_password, rôle, permissions) — les claims JWT sont
+        // périmés une fois le mot de passe changé et ne doivent JAMAIS
+        // écraser l'état réel en base.
+        const { access, refresh, user: freshUser } = response.data;
 
         // Mettre à jour le store
-        useAuthStore.getState().setTokens(access, refresh);
+        useAuthStore.getState().setTokens(access, refresh, freshUser);
 
         // Relancer les requêtes en attente
         processQueue(null, access);

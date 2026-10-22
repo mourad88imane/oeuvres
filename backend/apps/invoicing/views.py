@@ -1,16 +1,37 @@
 from decimal import Decimal
 from django.db.models import Count, Sum, Q, Avg
+from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.utils import timezone
-from rest_framework import viewsets, status, parsers
+from rest_framework import viewsets, status, parsers, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from weasyprint import HTML
+import tempfile, os, logging
 
-from core.permissions import IsStaff
+
+def _extract_business_message(detail):
+    """Extrait un message métier lisible depuis une ValidationError DRF."""
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, list) and detail:
+        first = detail[0]
+        if isinstance(first, str):
+            return first
+        return _extract_business_message(first)
+    if isinstance(detail, dict):
+        for value in detail.values():
+            msg = _extract_business_message(value)
+            if msg:
+                return msg
+    return None
+
+from core.permissions import HasAnyModuleAccess, user_has_permission
 from core.pagination import StandardResultsSetPagination
 from shared.tenant.mixins import TenantViewSetMixin
 from apps.invoicing.models import (
-    ProviderInvoice, InvoiceLine, VoucherConsumption,
-    InvoiceStatusHistory, ProviderInvoiceAttachment,
+    ProviderInvoice, InvoiceLine, InvoiceCoverageRequestLine,
+    VoucherConsumption, InvoiceStatusHistory, ProviderInvoiceAttachment,
 )
 from apps.invoicing.serializers import (
     ProviderInvoiceListSerializer,
@@ -26,7 +47,7 @@ from apps.invoicing.serializers import (
 
 
 class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
-    permission_classes = [IsStaff]
+    permission_classes = [HasAnyModuleAccess("medical_coverage", "invoice")]
     pagination_class = StandardResultsSetPagination
 
     def get_serializer_class(self):
@@ -44,6 +65,9 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         ).prefetch_related(
             "lines", "lines__voucher", "lines__voucher__employee",
             "lines__voucher__beneficiary", "lines__voucher__coverage_type",
+            "coverage_lines", "coverage_lines__coverage_request",
+            "coverage_lines__coverage_request__employee",
+            "coverage_lines__coverage_request__beneficiary",
             "consumptions", "consumptions__consumed_by",
             "status_history", "status_history__changed_by",
             "attachments", "attachments__uploaded_by",
@@ -106,8 +130,47 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         return qs.order_by(ordering)
 
     def create(self, request, *args, **kwargs):
+        logger = logging.getLogger(__name__)
+        partner_id = request.data.get("partner")
+        month = request.data.get("month")
+        year = request.data.get("year")
+        if partner_id and month and year:
+            existing = ProviderInvoice.objects.filter(
+                partner_id=partner_id,
+                month=int(month),
+                year=int(year),
+            ).exclude(status="cancelled").first()
+            if existing:
+                return Response(
+                    {
+                        "status": "error",
+                        "code": "DUPLICATE_INVOICE",
+                        "message": (
+                            f"Une facture brouillon/validée existe déjà pour ce prestataire "
+                            f"sur la période {month}/{year} (réf: {existing.reference})."
+                        ),
+                        "errors": {"existing_invoice_id": str(existing.id)},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except serializers.ValidationError as exc:
+            logger.error("Create invoice validation failed. data=%s errors=%s", request.data, serializer.errors)
+            # Exposer le message métier (ex: bon déjà consommé) en premier plan
+            business_msg = _extract_business_message(exc.detail)
+            payload = {
+                "status": "error",
+                "code": "VOUCHER_ALREADY_CONSUMED" if business_msg and "déjà été consommé" in business_msg else "VALIDATION_ERROR",
+                "message": business_msg or "Les données soumises sont invalides.",
+                "errors": serializer.errors,
+            }
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.error("Create invoice validation failed. data=%s errors=%s", request.data, serializer.errors)
+            raise
         invoice = serializer.save(created_by=request.user, updated_by=request.user)
         detail = ProviderInvoiceDetailSerializer(invoice, context={"request": request})
         return Response(
@@ -130,7 +193,13 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
                 {"status": "error", "message": "Seules les factures en brouillon peuvent être supprimées."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Restaurer les statuts des bons/demandes avant suppression
+        for line in invoice.lines.select_related("voucher").all():
+            invoice.release_voucher_line(line)
+        for line in invoice.coverage_lines.select_related("coverage_request").all():
+            invoice.release_coverage_line(line)
         invoice.lines.all().delete()
+        invoice.coverage_lines.all().delete()
         invoice.delete()
         return Response({"status": "success", "message": "Facture supprimée."}, status=status.HTTP_204_NO_CONTENT)
 
@@ -140,6 +209,26 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         ser = ProviderInvoiceTransitionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         action_val = ser.validated_data["action"]
+
+        # ── Gardes de rôle (feuille de route : validation = Comptable/Validateur) ──
+        # La validation/paiement/annulation d'une facture est une action financière :
+        # réservée aux rôles disposant des permissions adéquates (admin bypass).
+        required_permission = {
+            "validate": "invoice.validate",
+            "pay": "finance.process_payment",
+            "cancel": "invoice.validate",
+        }[action_val]
+        if not user_has_permission(request.user, required_permission):
+            return Response(
+                {
+                    "status": "error",
+                    "message": (
+                        "Vous n'avez pas la permission d'effectuer cette action "
+                        "sur la facture."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             if action_val == "validate":
@@ -177,6 +266,7 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         partner_id = request.query_params.get("partner_id")
         month = request.query_params.get("month")
         year = request.query_params.get("year")
+        category = request.query_params.get("category")
 
         if not all([partner_id, month, year]):
             return Response(
@@ -193,59 +283,110 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        from apps.medical_coverage.models import MedicalCoverageVoucher
+        from apps.medical_coverage.models import MedicalCoverageRequest
 
-        vouchers = MedicalCoverageVoucher.objects.filter(
-            provider__partner_id=partner_id,
-            workflow_state__in=["approved"],
-        ).select_related("employee", "beneficiary", "coverage_type")
+        CATEGORY_MAP = {
+            "medical_analysis_lab": "analysis",
+            "medical_imaging_center": "imaging",
+            "medical_center": "center",
+        }
 
-        if request.query_params.get("employee_id"):
-            vouchers = vouchers.filter(employee_id=request.query_params["employee_id"])
-        if request.query_params.get("beneficiary_id"):
-            vouchers = vouchers.filter(beneficiary_id=request.query_params["beneficiary_id"])
+        filters = {
+            "partner_id": partner_id,
+            # validated ET printed : un bon imprimé reste facturable
+            "workflow_state__in": ["validated", "printed"],
+            "consumption_status": "not_consumed",
+        }
+        if category:
+            filters["category"] = CATEGORY_MAP.get(category, category)
+
+        qs = MedicalCoverageRequest.objects.filter(
+            **filters
+        ).select_related("employee", "beneficiary", "partner")
 
         period_start = request.query_params.get("period_start")
         period_end = request.query_params.get("period_end")
         if period_start and period_end:
-            vouchers = vouchers.filter(request_date__gte=period_start, request_date__lte=period_end)
-        else:
-            vouchers = vouchers.filter(request_date__year=year, request_date__month=month)
+            qs = qs.filter(coverage_date__gte=period_start, coverage_date__lte=period_end)
 
-        already_consumed = set(VoucherConsumption.objects.filter(
-            voucher__in=vouchers,
-        ).values_list("voucher_id", flat=True))
-
-        already_invoiced = set(ProviderInvoice.objects.filter(
-            lines__voucher__in=vouchers,
-        ).exclude(status="cancelled").values_list("lines__voucher_id", flat=True))
-
-        excluded = already_consumed | already_invoiced
+        already_invoiced = InvoiceCoverageRequestLine.objects.filter(
+            coverage_request__in=qs,
+            invoice__status__in=("draft", "validated", "paid"),
+        ).values_list("coverage_request_id", flat=True)
+        qs = qs.exclude(id__in=already_invoiced)
 
         data = []
-        for v in vouchers:
-            if v.id in excluded:
-                continue
-            beneficiary_type_label = v.get_beneficiary_type_display() if v.beneficiary_type else None
-            relationship = (
-                "Ayant droit" if v.beneficiary_type == "dependent"
-                else "Employé" if v.beneficiary_type == "employee"
-                else None
-            )
+        for r in qs:
             data.append({
-                "id": str(v.id),
-                "reference": v.reference,
-                "employee_name": f"{v.employee.first_name} {v.employee.last_name}",
-                "employee_matricule": v.employee.matricule,
-                "beneficiary_name": f"{v.beneficiary.first_name} {v.beneficiary.last_name}" if v.beneficiary else None,
-                "beneficiary_type": beneficiary_type_label,
-                "beneficiary_relationship": relationship,
-                "coverage_type_name": v.coverage_type.name,
-                "coverage_type_code": v.coverage_type.code,
-                "examination": v.coverage_type.name,
-                "request_date": v.request_date.isoformat(),
-                "approved_amount": float(v.approved_amount) if v.approved_amount else None,
-                "workflow_state": v.workflow_state,
+                "id": str(r.id),
+                "request_number": r.request_number,
+                "employee_name": f"{r.employee.first_name} {r.employee.last_name}",
+                "employee_matricule": r.employee.matricule,
+                "beneficiary_name": f"{r.beneficiary.first_name} {r.beneficiary.last_name}" if r.beneficiary else None,
+                "category": r.category,
+                "category_label": dict(MedicalCoverageRequest.Category.choices).get(r.category, r.category),
+                "partner_name": r.partner.name if r.partner else None,
+                "partner_code": r.partner.code if r.partner else None,
+                "coverage_date": r.coverage_date.isoformat() if r.coverage_date else None,
+                "validation_date": r.validation_date.isoformat() if r.validation_date else None,
+                "workflow_state": r.workflow_state,
+            })
+
+        return Response({"status": "success", "count": len(data), "data": data})
+
+    @action(detail=False, methods=["get"])
+    def search_vouchers(self, request):
+        query = request.query_params.get("q", "").strip()
+        partner_id = request.query_params.get("partner_id", "").strip()
+
+        from apps.medical_coverage.models import MedicalCoverageRequest
+
+        CATEGORY_MAP = {
+            "medical_analysis_lab": "analysis",
+            "medical_imaging_center": "imaging",
+            "medical_center": "center",
+        }
+
+        # validated ET printed : un bon imprimé reste facturable
+        filters = {"workflow_state__in": ["validated", "printed"], "consumption_status": "not_consumed"}
+        if partner_id:
+            filters["partner_id"] = partner_id
+
+        qs = MedicalCoverageRequest.objects.filter(
+            **filters
+        ).select_related("employee", "beneficiary", "partner")
+
+        if query:
+            qs = qs.filter(
+                Q(request_number__icontains=query) |
+                Q(employee__first_name__icontains=query) |
+                Q(employee__last_name__icontains=query) |
+                Q(employee__matricule__icontains=query) |
+                Q(beneficiary__first_name__icontains=query) |
+                Q(beneficiary__last_name__icontains=query)
+            )
+
+        already_invoiced = InvoiceCoverageRequestLine.objects.filter(
+            coverage_request__in=qs,
+            invoice__status__in=("draft", "validated", "paid"),
+        ).values_list("coverage_request_id", flat=True)
+        qs = qs.exclude(id__in=already_invoiced)
+
+        data = []
+        for r in qs[:50]:
+            data.append({
+                "id": str(r.id),
+                "request_number": r.request_number,
+                "employee_name": f"{r.employee.first_name} {r.employee.last_name}",
+                "employee_matricule": r.employee.matricule,
+                "beneficiary_name": f"{r.beneficiary.first_name} {r.beneficiary.last_name}" if r.beneficiary else None,
+                "category": r.category,
+                "category_label": dict(MedicalCoverageRequest.Category.choices).get(r.category, r.category),
+                "partner_name": r.partner.name if r.partner else None,
+                "partner_code": r.partner.code if r.partner else None,
+                "coverage_date": r.coverage_date.isoformat() if r.coverage_date else None,
+                "validation_date": r.validation_date.isoformat() if r.validation_date else None,
+                "workflow_state": r.workflow_state,
             })
 
         return Response({"status": "success", "count": len(data), "data": data})
@@ -342,6 +483,58 @@ class ProviderInvoiceViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
                 ],
             },
         })
+
+    @action(detail=True, methods=["get"])
+    def pdf(self, request, pk=None):
+        logger = logging.getLogger(__name__)
+        invoice = self.get_object()
+        lines = invoice.lines.select_related(
+            "voucher", "voucher__employee", "voucher__beneficiary", "voucher__coverage_type",
+        ).all()
+
+        ctx = {
+            "invoice": invoice,
+            "lines": lines,
+        }
+
+        template_name = "invoicing/invoice_pdf.html"
+        try:
+            html = render_to_string(template_name, ctx)
+        except Exception as e:
+            logger.error("Template rendering failed: %s", e)
+            return Response(
+                {"error": "Erreur lors de la génération du PDF"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                HTML(string=html).write_pdf(f.name)
+                f.seek(0)
+                pdf_content = f.read()
+                os.unlink(f.name)
+        except Exception as e:
+            logger.error("PDF generation failed for invoice %s: %s", pk, e)
+            return Response(
+                {"error": "Erreur lors de la génération du PDF"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            if hasattr(invoice, 'printed_at'):
+                invoice.printed_at = timezone.now()
+                invoice.print_count = (invoice.print_count or 0) + 1
+                invoice.save(update_fields=["printed_at", "print_count", "updated_at"])
+        except Exception:
+            pass
+
+        mode = request.query_params.get("mode", "download")
+        filename = f"{invoice.reference}.pdf"
+        disposition = "inline" if mode == "preview" else f'attachment; filename="{filename}"'
+
+        resp = HttpResponse(pdf_content, content_type="application/pdf")
+        resp["Content-Disposition"] = disposition
+        return resp
 
     @action(detail=True, methods=["post"], parser_classes=[parsers.MultiPartParser, parsers.FormParser])
     def upload_attachment(self, request, pk=None):

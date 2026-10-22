@@ -30,6 +30,15 @@ log_step()    { echo -e "${CYAN}[STEP]${NC} $1"; }
 pre_deploy_checks() {
     log_step "Vérifications pré-déploiement..."
 
+    # Fichiers AppleDouble macOS (._*) : cassent `git status`/`git fsck`
+    # et polluent les contexts de build Docker.
+    local junk_count
+    junk_count=$(find . -name '._*' -type f 2>/dev/null | wc -l)
+    if [ "$junk_count" -gt 0 ]; then
+        find . -name '._*' -type f -delete
+        log_warn "$junk_count fichier(s) AppleDouble (._*) supprimés"
+    fi
+
     if [ ! -f "backend/.env.production" ]; then
         log_error "Fichier backend/.env.production manquant"
         exit 1
@@ -39,10 +48,33 @@ pre_deploy_checks() {
         log_warn "Dossier nginx/ssl/ manquant — vérifiez les certificats"
     fi
 
-    # Vérifier que Docker est disponible
+    # Vérifier que Docker est disponible (en distinguant droits et daemon)
     if ! docker info &>/dev/null; then
-        log_error "Docker n'est pas en cours d'exécution"
+        if docker info 2>&1 | grep -qi "permission denied"; then
+            log_error "Docker : droits insuffisants (permission denied ... docker.sock)"
+            log_error "  Correctif : sudo usermod -aG docker \$USER  puis déconnexion/reconnexion"
+        else
+            log_error "Docker n'est pas en cours d'exécution"
+        fi
         exit 1
+    fi
+
+    # ALLOWED_HOSTS doit contenir l'IP de ce serveur, sinon Django répond
+    # « 400 Bad Request » sur toutes les requêtes HTTPS.
+    if [ -f "backend/.env.production" ]; then
+        local host_ip
+        host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$host_ip" ] && ! grep -F "ALLOWED_HOSTS=" backend/.env.production | grep -qF "$host_ip"; then
+            log_warn "ALLOWED_HOSTS ne contient pas l'IP de ce serveur ($host_ip)"
+            log_warn "  → https://$host_ip renverra 400 Bad Request (DisallowedHost)"
+        fi
+    fi
+
+    # VITE_API_URL doit être relatif : s'il est absolu, l'application parle
+    # à un autre serveur (erreur typée ERR_CERT_AUTHORITY_INVALID / CORS).
+    if [ -f "frontend/.env.production" ] && grep -qE '^VITE_API_URL=https?://' frontend/.env.production; then
+        log_warn "VITE_API_URL est absolu ($(grep -E '^VITE_API_URL=' frontend/.env.production | cut -d= -f2-))"
+        log_warn "  → recommandé : VITE_API_URL=/api/v1 puis rebuild du frontend"
     fi
 
     # Vérifier que docker-compose.prod.yml existe

@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from core.permissions import IsAdmin, IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 
 from .models import Department
 from .serializers import DepartmentCreateSerializer, DepartmentListSerializer, DepartmentSerializer
@@ -35,9 +35,7 @@ class DepartmentViewSet(ModelViewSet):
         return DepartmentSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "tree"):
-            return [IsAuthenticated(), IsAdminOrGestionnaire()]
-        return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated(), HasModuleAccess("employees")()]
 
     def get_queryset(self):
         qs = super().get_queryset()

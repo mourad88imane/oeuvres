@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdmin, IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 from shared.workflow.engine import WorkflowError
 
 from .serializers import (
@@ -52,11 +52,7 @@ class LoanViewSet(TenantViewSetMixin, ModelViewSet):
         return LoanDetailSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "workflow_log", "available_transitions"):
-            return [IsAuthenticated()]
-        if self.action == "destroy":
-            return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated(), IsAdminOrGestionnaire()]
+        return [IsAuthenticated(), HasModuleAccess("loans")()]
 
     def get_queryset(self):
         p = self.request.query_params

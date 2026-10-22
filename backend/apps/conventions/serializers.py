@@ -34,8 +34,26 @@ class PartnerListSerializer(serializers.ModelSerializer):
         return obj.wilaya
 
 
+class PartnerConventionSerializer(serializers.ModelSerializer):
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = Convention
+        fields = [
+            "id",
+            "reference",
+            "title",
+            "status",
+            "status_display",
+            "start_date",
+            "end_date",
+            "amount",
+        ]
+
+
 class PartnerSerializer(BaseModelSerializer):
     type_display = serializers.CharField(source="get_type_display", read_only=True)
+    conventions = PartnerConventionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Partner
@@ -65,6 +83,7 @@ class PartnerSerializer(BaseModelSerializer):
             "description",
             "notes",
             "metadata",
+            "conventions",
             "created_at",
             "updated_at",
             "created_by_name",
@@ -194,9 +213,14 @@ class ConventionSerializer(BaseModelSerializer):
 
 
 class ConventionCreateSerializer(serializers.ModelSerializer):
+    reference = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=30
+    )
+
     class Meta:
         model = Convention
         fields = [
+            "reference",
             "partner",
             "title",
             "description",
@@ -212,7 +236,9 @@ class ConventionCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        if attrs["start_date"] >= attrs["end_date"]:
+        start_date = attrs.get("start_date")
+        end_date = attrs.get("end_date")
+        if start_date and end_date and start_date >= end_date:
             raise serializers.ValidationError(
                 {"end_date": "La date d'échéance doit être après la date d'effet."}
             )

@@ -2,7 +2,9 @@ from datetime import timedelta
 
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+
+from core.permissions import HasModuleAccess
 from rest_framework.response import Response
 
 from django.db.models import Count
@@ -14,7 +16,7 @@ from .validation import ValidationTrace
 
 
 class AuditViewSet(viewsets.GenericViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
 
     @action(detail=False, methods=["get"])
     def logs(self, request):

@@ -1,15 +1,19 @@
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users, Gift, ArrowUpRight, TrendingUp, CheckCircle2,
-  Clock, Zap,
-  CreditCard, UserCheck, UserPlus,
+  Clock, Zap, Send, Loader2,
+  CreditCard, Bell, MessageSquare, Info,
 } from "lucide-react";
+import { useAskAssistant } from "@modules/ai/api/index";
 import {
   XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, LineChart, Line, Legend,
 } from "recharts";
 import { useAuthStore } from "@modules/auth/store/authStore";
 import { useGlobalDashboard } from "@modules/analytics/api/index";
+import { useNotifications } from "@modules/notifications/api/index";
 import { Spinner } from "@shared/components/ui/index";
 import { fmtNumber, fmtDZD } from "@modules/analytics/utils/formatters";
 import { RecommendationsWidget } from "@modules/ai/components/RecommendationsWidget";
@@ -19,7 +23,27 @@ import { MedicalCoverageWidget } from "@modules/medical-coverage/components/Medi
 export function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const { data, isLoading } = useGlobalDashboard({ months: 6 });
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const aiAsk = useAskAssistant();
+
+  const sendAiMessage = () => {
+    const q = aiQuery.trim();
+    if (!q || aiAsk.isPending) return;
+    setAiQuery("");
+    setAiMessages(prev => [...prev, { role: "user", text: q }]);
+    aiAsk.mutate(q, {
+      onSuccess: (res) => {
+        const reply = typeof res.response === "string" ? res.response : res.response?.text || JSON.stringify(res.response);
+        setAiMessages(prev => [...prev, { role: "assistant", text: reply }]);
+      },
+      onError: () => {
+        setAiMessages(prev => [...prev, { role: "assistant", text: t("ai.errorRetry") }]);
+      },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -45,6 +69,7 @@ export function DashboardPage() {
           <p className="text-sm font-medium mt-1" style={{ color: "#8a8882" }}>{t("dashboard.subtitle")}</p>
         </div>
         <button
+          onClick={() => navigate("/reporting")}
           className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all"
           style={{ background: "#ffda2d", color: "#1a1917" }}
           onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 8px 24px rgba(255,218,45,0.3)"; }}
@@ -60,28 +85,24 @@ export function DashboardPage() {
           title={t("dashboard.activeEmployeesShort")}
           value={fmtNumber(s?.employees?.active ?? 0)}
           icon={Users}
-          badge="+12%"
           color="#3b82f6"
         />
         <KpiCard
           title={t("dashboard.totalBenefits")}
           value={fmtNumber(s?.benefits?.total ?? 0)}
           icon={Gift}
-          badge="+8%"
           color="#22c55e"
         />
         <KpiCard
           title={t("dashboard.activeConventionsShort")}
           value={fmtNumber(s?.conventions?.active ?? 0)}
           icon={TrendingUp}
-          badge="Actif"
           color="#f59e0b"
         />
         <KpiCard
           title={t("dashboard.totalPaidShort")}
           value={fmtDZD(s?.finance?.total_paid ?? 0, true)}
           icon={CreditCard}
-          badge="Budget"
           color="#a855f7"
         />
       </div>
@@ -137,18 +158,35 @@ export function DashboardPage() {
             <h2 className="text-base font-black" style={{ color: "#1a1917" }}>Assistant Social AI</h2>
           </div>
           <div className="flex-1 space-y-3 mb-4 overflow-y-auto pr-1" style={{ maxHeight: 200 }}>
-            <div className="rounded-2xl p-4 text-sm" style={{ background: "#f3f2ee" }}>
-              <p className="font-black mb-1 text-xs uppercase tracking-wider" style={{ color: "#ffda2d" }}>SocialBot</p>
-              <p className="font-medium" style={{ color: "#1a1917" }}>J'ai remarqué une augmentation des demandes ces 30 derniers jours. Voulez-vous générer un rapport ?</p>
-            </div>
-            <div className="rounded-2xl p-4 text-sm ml-4" style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.04)" }}>
-              <p className="font-black mb-1 text-xs uppercase tracking-wider" style={{ color: "#8a8882" }}>Vous</p>
-              <p className="font-medium" style={{ color: "#1a1917" }}>Oui, prépare une analyse budgétaire.</p>
-            </div>
+            {aiMessages.length === 0 && (
+              <p className="text-sm font-medium text-center py-6" style={{ color: "#8a8882" }}>
+                {t("ai.askQuestion")}
+              </p>
+            )}
+            {aiMessages.map((m, i) => (
+              <div key={i} className={`rounded-2xl p-4 text-sm ${m.role === "user" ? "ml-6" : ""}`}
+                style={m.role === "user"
+                  ? { background: "#ffda2d", color: "#1a1917" }
+                  : { background: "#f3f2ee" }}>
+                <p className="font-black mb-1 text-xs uppercase tracking-wider" style={{ color: m.role === "user" ? "#1a1917" : "#ffda2d" }}>
+                  {m.role === "user" ? t("ai.you") : "SocialBot"}
+                </p>
+                <p className="font-medium" style={{ color: m.role === "user" ? "#1a1917" : "#1a1917" }}>{m.text}</p>
+              </div>
+            ))}
+            {aiAsk.isPending && (
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "#8a8882" }}>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {t("ai.thinking")}
+              </div>
+            )}
           </div>
           <div className="relative">
             <input
-              type="text" placeholder="Poser une question à l'IA..."
+              type="text" placeholder={t("ai.inputPlaceholder")}
+              value={aiQuery}
+              onChange={e => setAiQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") sendAiMessage(); }}
               className="w-full rounded-2xl py-3 px-4 text-sm outline-none transition-all pr-12 font-medium"
               style={{
                 background: "#f3f2ee",
@@ -158,8 +196,13 @@ export function DashboardPage() {
               onFocus={e => { e.currentTarget.style.borderColor = "#ffda2d"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "rgba(0,0,0,0.04)"; }}
             />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2" style={{ color: "#ffda2d" }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/></svg>
+            <button
+              onClick={sendAiMessage}
+              disabled={!aiQuery.trim() || aiAsk.isPending}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 transition-opacity disabled:opacity-40"
+              style={{ color: "#ffda2d" }}
+            >
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -240,31 +283,47 @@ function KpiCard({ title, value, icon: Icon, badge, color }: KpiCardProps) {
   );
 }
 
+const NOTIF_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
+  critical: { icon: Bell,   color: "#dc2626", bg: "rgba(239,68,68,0.1)" },
+  high:     { icon: Info,   color: "#d97706", bg: "rgba(245,158,11,0.1)" },
+  medium:   { icon: MessageSquare, color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
+  low:      { icon: Clock,  color: "#8a8882", bg: "rgba(138,136,130,0.08)" },
+};
+
 function ActivityFeed() {
-  const activities = [
-    { icon: CheckCircle2, color: "#22c55e", bg: "rgba(34,197,94,0.1)", title: "Versement primes vacances", desc: "Les virements ont été effectués pour 240 adhérents", time: "Il y a 2 mins" },
-    { icon: UserPlus, color: "#3b82f6", bg: "rgba(59,130,246,0.1)", title: "Nouvel adhérent enregistré", desc: "Sarah Chen a rejoint le programme social", time: "Il y a 45 mins" },
-    { icon: Clock, color: "#f59e0b", bg: "rgba(245,158,11,0.1)", title: "Nouvelle session colonies", desc: "Ouverture des inscriptions pour l'été 2026", time: "Il y a 2 heures" },
-    { icon: UserCheck, color: "#a855f7", bg: "rgba(168,85,247,0.1)", title: "Demande de bourse validée", desc: "Dossier de Karim B. approuvé par le comité", time: "Il y a 4 heures" },
-  ];
+  const { t } = useTranslation();
+  const { data: notifsData, isLoading } = useNotifications({ page: 1 });
+  const notifications = notifsData?.results ?? [];
 
   return (
     <div className="bg-white rounded-[32px] p-6" style={{ border: "1px solid rgba(0,0,0,0.04)" }}>
-      <h2 className="text-base font-black mb-6" style={{ color: "#1a1917" }}>Activités Récentes</h2>
-      <div className="space-y-5">
-        {activities.map((a, i) => (
-          <div key={i} className="flex gap-3">
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0" style={{ background: a.bg }}>
-              <a.icon className="w-4 h-4" style={{ color: a.color }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "#1a1917" }}>{a.title}</p>
-              <p className="text-xs font-medium mt-0.5" style={{ color: "#8a8882" }}>{a.desc}</p>
-              <span className="text-[10px] font-bold uppercase tracking-wider mt-1 block" style={{ color: "#a8a49a" }}>{a.time}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+      <h2 className="text-base font-black mb-6" style={{ color: "#1a1917" }}>{t("dashboard.recentActivity")}</h2>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "#8a8882" }}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {t("common.loading")}
+        </div>
+      ) : notifications.length === 0 ? (
+        <p className="text-sm font-medium" style={{ color: "#8a8882" }}>{t("dashboard.noActivity")}</p>
+      ) : (
+        <div className="space-y-5">
+          {notifications.slice(0, 6).map((n) => {
+            const cfg = NOTIF_ICONS[n.priority] || NOTIF_ICONS.low;
+            return (
+              <div key={n.id} className="flex gap-3">
+                <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0" style={{ background: cfg.bg }}>
+                  <cfg.icon className="w-4 h-4" style={{ color: cfg.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: "#1a1917" }}>{n.title}</p>
+                  {n.body && <p className="text-xs font-medium mt-0.5" style={{ color: "#8a8882" }}>{n.body}</p>}
+                  <span className="text-[10px] font-bold uppercase tracking-wider mt-1 block" style={{ color: "#a8a49a" }}>{n.time_ago}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

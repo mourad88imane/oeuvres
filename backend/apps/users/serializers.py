@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from core.serializers import BaseModelSerializer
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 
 from .models import User
 
@@ -32,6 +33,7 @@ class UserSerializer(BaseModelSerializer):
             "role_display",
             "is_active",
             "must_change_password",
+            "password_changed_at",
             "last_login",
             "last_login_ip",
             "date_joined",
@@ -43,6 +45,7 @@ class UserSerializer(BaseModelSerializer):
             "email",
             "last_login",
             "last_login_ip",
+            "password_changed_at",
             "date_joined",
             "created_at",
             "updated_at",
@@ -91,6 +94,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user = User(**validated_data)
         user.set_password(password)
         user.must_change_password = True  # Force le changement à la 1ère connexion
+        # password_changed_at volontairement laissé à None : la création n'est
+        # pas un « changement » de mot de passe (voir change-password / reset admin).
         user.save()
         return user
 
@@ -104,7 +109,17 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
 
 class UserAdminUpdateSerializer(serializers.ModelSerializer):
-    """Mise à jour complète par un admin."""
+    """Mise à jour complète par un admin.
+    Le mot de passe est optionnel — s'il est vide, il n'est pas modifié.
+    """
+
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        validators=[validate_password],
+        style={"input_type": "password"},
+    )
 
     class Meta:
         model = User
@@ -115,7 +130,21 @@ class UserAdminUpdateSerializer(serializers.ModelSerializer):
             "role",
             "is_active",
             "must_change_password",
+            "password",
         ]
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+            # Reset admin : le changement forcé (1ère connexion) est CONSERVÉ,
+            # seul l'horodatage du dernier changement est renseigné.
+            instance.must_change_password = True
+            instance.password_changed_at = timezone.now()
+        instance.save()
+        return instance
 
 
 class ChangePasswordSerializer(serializers.Serializer):

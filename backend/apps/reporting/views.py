@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdminOrGestionnaire, IsAdminOrReadOnly
+from core.permissions import HasModuleAccess
 from django.apps import apps
 from django.db import models as db_models
 from django.utils import timezone, translation
@@ -39,7 +39,7 @@ logger = logging.getLogger("apps.reporting")
 
 
 class AnalyticsViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("statistics")]
 
     @action(detail=False, methods=["get"])
     def summary(self, request):
@@ -112,7 +112,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
 class KpiViewSet(viewsets.ModelViewSet):
     queryset = KpiDefinition.objects.filter(is_deleted=False)
     serializer_class = KpiDefinitionSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, HasModuleAccess("reports")]
 
     @action(detail=False, methods=["get"])
     def values(self, request):
@@ -146,7 +146,7 @@ class KpiViewSet(viewsets.ModelViewSet):
 class DashboardConfigViewSet(viewsets.ModelViewSet):
     queryset = DashboardWidget.objects.filter(is_deleted=False, is_active=True)
     serializer_class = DashboardWidgetSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("reports")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -173,7 +173,7 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ReportDefinition.objects.filter(is_deleted=False, is_active=True)
     serializer_class = ReportDefinitionSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("reports")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -560,7 +560,7 @@ class ExportViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = DataExport.objects.filter(is_deleted=False)
     serializer_class = DataExportSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("reports")]
 
     def get_queryset(self):
         qs = super().get_queryset()

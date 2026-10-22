@@ -41,6 +41,30 @@ export function useCreateCoverageRequest() {
   });
 }
 
+export function useUpdateCoverageRequest(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<MedicalCoverageRequestCreatePayload>) =>
+      coverageRequestApi.update(id, data).then(r => r.data.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: REQUEST_KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: REQUEST_KEYS.lists() });
+      qc.invalidateQueries({ queryKey: REQUEST_KEYS.statistics() });
+    },
+  });
+}
+
+export function useDeleteCoverageRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => coverageRequestApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: REQUEST_KEYS.lists() });
+      qc.invalidateQueries({ queryKey: REQUEST_KEYS.statistics() });
+    },
+  });
+}
+
 export function useAvailableTransitions(id: string | null) {
   return useQuery({
     queryKey: [...REQUEST_KEYS.detail(id!), "available_transitions"],

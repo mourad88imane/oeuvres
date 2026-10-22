@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schéma synoptique — Oeuvres Sociales</title>
+<style>
+  :root {
+    --fg: #1f2430; --muted: #5b6472; --bg: #ffffff; --card: #f6f8fb;
+    --line: #dfe4ec; --accent: #1f6feb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 24px 80px; background: var(--bg); color: var(--fg);
+    font: 15px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 42px 0 12px; padding-bottom: 6px;
+        border-bottom: 2px solid var(--line); }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  p, li { color: var(--fg); }
+  .lead { color: var(--muted); margin-top: 0; }
+  code { background: var(--card); border: 1px solid var(--line); border-radius: 4px;
+          padding: 1px 5px; font-size: 13px; }
+  blockquote { margin: 14px 0; padding: 10px 16px; background: var(--card);
+                border-left: 4px solid var(--accent); color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left;
+            vertical-align: top; }
+  th { background: var(--card); }
+  pre.mermaid {
+    background: #fbfcfe; border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px; margin: 18px 0; overflow-x: auto; text-align: center;
+  }
+  pre.mermaid svg { max-width: 100%; height: auto; }
+  .error { color: #b3261e; font-family: monospace; white-space: pre-wrap; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 34px 0; }
+  a { color: var(--accent); }
+  footer { margin-top: 50px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Schéma synoptique — Composants &amp; Interactions</h1>
+<blockquote><p>Plateforme « Oeuvres Sociales » — lecture de l'architecture <strong>telle qu'elle est codée aujourd'hui</strong> (vérifiée le 04/10/2026 sur l'environnement <code>docker compose</code> local).  Deux formats : ce fichier Markdown (diagrammes Mermaid, lisible sur GitHub/GitLab) et le rendu navigateur <a href="./synoptic-components.html">synoptic-components.html</a>.</p></blockquote>
+<hr>
+<h2>1. Vue d'ensemble — conteneurs et flux réseau</h2>
+<p>Tout tourne dans un réseau Docker <code>oeuvres_network</code>. Le navigateur ne parle qu'à <strong>Nginx</strong> (port 80), qui route selon l'URL.</p>
+<pre class="mermaid">flowchart LR
+    U[&quot;Navigateur&lt;br/&gt;(utilisateur)&quot;]
+
+    subgraph DOCKER[&quot;Réseau Docker : oeuvres_network&quot;]
+        NG[&quot;&lt;b&gt;Nginx&lt;/b&gt;&lt;br/&gt;reverse proxy :80&quot;]
+
+        subgraph APP[&quot;Application&quot;]
+            FE[&quot;&lt;b&gt;Frontend&lt;/b&gt; React 18 + Vite 6&lt;br/&gt;:3000 (HMR, code hot-reload)&quot;]
+            BE[&quot;&lt;b&gt;Backend&lt;/b&gt; Django 5.1 + DRF&lt;br/&gt;runserver :8000 (hot-reload)&quot;]
+            CW[&quot;&lt;b&gt;Celery worker&lt;/b&gt;&lt;br/&gt;tâches asynchrones&quot;]
+            CB[&quot;&lt;b&gt;Celery beat&lt;/b&gt;&lt;br/&gt;plannification (DatabaseScheduler)&quot;]
+        end
+
+        subgraph DATA[&quot;Données&quot;]
+            PG[(&quot;PostgreSQL 16&lt;br/&gt;:5432 — volume postgres_data&quot;)]
+            RD[(&quot;Redis 7&lt;br/&gt;:6379 — cache + broker&lt;br/&gt;volume redis_data&quot;)]
+        end
+
+        MH[&quot;&lt;b&gt;MailHog&lt;/b&gt;&lt;br/&gt;SMTP :1025 / UI :8025&quot;]
+    end
+
+    U --&gt;|&quot;HTTP / /api/ /admin/&quot;| NG
+    NG --&gt;|&quot;/  (SPA, assets)&quot;| FE
+    NG --&gt;|&quot;/api/**  /metrics&quot;| BE
+    NG --&gt;|&quot;/admin/(sauf modules React)&quot;| BE
+
+    BE --&gt; PG
+    BE --&gt; RD
+    BE -.-&gt;|&quot;email (SMTP)&quot;| MH
+    CW --&gt; PG
+    CW --&gt; RD
+    CB --&gt; PG
+    CB --&gt; RD
+    FE --&gt;|&quot;fetch/XHR : /api/v1/**&quot;| NG</pre>
+<p><strong>Ports exposés sur l'hôte :</strong> <code>80</code> (app), <code>3000</code> (Vite direct), <code>8000</code> (API direct), <code>5432</code> (Postgres/DBeaver), <code>6379</code> (Redis), <code>1025</code>/<code>8025</code> (MailHog), <code>5050</code> (pgAdmin, profil <code>tools</code>).</p>
+<p><strong>Routing Nginx</strong> (<code>nginx/conf.d/default.conf</code>) :</p>
+<table><thead><tr><th>Location</th><th>Destination</th><th>Remarque</th></tr></thead><tbody><tr><td><code>/api/v1/auth/login/</code></td><td>backend</td><td>rate-limit <strong>5 req/min</strong> (anti-brute-force)</td></tr><tr><td><code>/api/**</code></td><td>backend</td><td>rate-limit <strong>120 req/min</strong>, headers sécurité + CSP</td></tr><tr><td>`/admin/(roles\</td><td>permissions\</td><td>org-structure\</td><td>workflow-…)`</td><td><strong>frontend</strong></td><td>l'admin avancé est une page React</td></tr><tr><td><code>/admin/**</code></td><td>backend</td><td>Django admin classique</td></tr><tr><td><code>/static/</code>, <code>/media/</code></td><td>fichiers locaux</td><td></td></tr><tr><td><code>/metrics</code></td><td>backend</td><td>Prometheus (restreint)</td></tr><tr><td><code>/</code></td><td>frontend</td><td><code>try_files</code> → SPA React Router</td></tr></tbody></table>
+<hr>
+<h2>2. Cycle de vie d'une requête API (côté serveur)</h2>
+<p>Le chemin d'une requête <code>GET /api/v1/employees/</code> : Nginx → pile de middleware Django → URLconf → permission → ViewSet → sérialiseur → modèle.</p>
+<pre class="mermaid">flowchart TD
+    R[&quot;Requête HTTP&quot;] --&gt; N[&quot;Nginx&lt;br/&gt;rate-limit + sécurité + proxy&quot;]
+    N --&gt; M1[&quot;PrometheusBefore&lt;br/&gt;Cors → Session → Locale&quot;]
+    M1 --&gt; M2[&quot;&lt;b&gt;CorrelationIDMiddleware&lt;/b&gt;&lt;br/&gt;X-Request-ID / X-Correlation-ID&quot;]
+    M2 --&gt; M3[&quot;CSRF → CSP → Auth (JWT) → Axes&lt;br/&gt;(brute-force 5 essais / 30 min)&quot;]
+    M3 --&gt; M4[&quot;&lt;b&gt;TenantMiddleware&lt;/b&gt; (multi-tenant)&quot;]
+    M4 --&gt; M5[&quot;&lt;b&gt;AuditMiddleware&lt;/b&gt; + signaux post_save/post_delete&lt;br/&gt;→ journal d&#x27;audit (ENGINE_AUDIT_MODELS)&quot;]
+    M5 --&gt; M6[&quot;&lt;b&gt;APIMonitoringMiddleware&lt;/b&gt;&lt;br/&gt;→ monitoring_apirequestlog / apiendpointstatus&quot;]
+    M6 --&gt; M7[&quot;PrometheusAfter&quot;]
+    M7 --&gt; U1[&quot;config/urls.py&lt;br/&gt;/api/v1/&amp;lt;module&amp;gt;/&quot;]
+    U1 --&gt; P{&quot;permission_classes&lt;br/&gt;IsAuthenticated + HasModuleAccess(&#x27;x&#x27;)&quot;}
+    P --&gt;|KO| E403[&quot;403 / 401&quot;]
+    P --&gt;|OK| V[&quot;ViewSet DRF&lt;br/&gt;(DefaultRouter)&quot;]
+    V --&gt; S[&quot;Serializer + validation&quot;]
+    S --&gt; DB[(&quot;PostgreSQL&quot;)]
+    DB --&gt; S --&gt; J[&quot;Réponse JSON paginée&lt;br/&gt;(PAGE_SIZE = 25)&quot;]
+    J --&gt; MON[&quot;écriture monitoring + audit&quot;]
+    MON --&gt; N</pre>
+<p><strong>RBAC en deux niveaux :</strong></p>
+<ul><li><strong>Backend</strong> : <code>core/permissions.py</code> (<code>IsAdmin</code>, <code>IsComptable</code>, <code>HasRoles</code>…)</li></ul>
+<p>+ <code>HasModuleAccess("&lt;module&gt;")</code> — vérifie qu'une permission Django du module est possédée.</p>
+<ul><li><strong>Frontend</strong> : <code>ProtectedRoute module="benefits"</code> → <code>authStore.hasModuleAccess()</code></li></ul>
+<p>lit les permissions reçues au login, sinon redirection <code>/403</code>.</p>
+<hr>
+<h2>3. Frontend — structure et interactions</h2>
+<pre class="mermaid">flowchart TD
+    ENTRY[&quot;main.tsx → App.tsx → RouterProvider&quot;] --&gt; RT[&quot;&lt;b&gt;app/router.tsx&lt;/b&gt;&lt;br/&gt;createBrowserRouter (lazy loading)&quot;]
+
+    RT --&gt; L1[&quot;Public : /login, /change-password, /403&quot;]
+    RT --&gt; PR[&quot;&lt;b&gt;ProtectedRoute&lt;/b&gt;&quot;]
+    PR --&gt;|&quot;non authentifié&quot;| LOGIN[&quot;→ /login&quot;]
+    PR --&gt;|&quot;module interdit&quot;| F403[&quot;→ /403&quot;]
+    PR --&gt;|OK| AL[&quot;&lt;b&gt;AppLayout&lt;/b&gt;&lt;br/&gt;sidebar / header / i18n fr-ar-en&quot;]
+
+    AL --&gt; M1[&quot;dashboard, analytics, ai&quot;]
+    AL --&gt; M2[&quot;employees, beneficiaries, benefits, loans&quot;]
+    AL --&gt; M3[&quot;finance, conventions, invoicing,&lt;br/&gt;medical-coverage&quot;]
+    AL --&gt; M4[&quot;users, organization, administration,&lt;br/&gt;monitoring, notifications, documents&quot;]
+
+    M1 &amp; M2 &amp; M3 &amp; M4 --&gt; API[&quot;&lt;b&gt;shared/api/apiClient.ts&lt;/b&gt;&lt;br/&gt;(instance Axios)&quot;]
+
+    subgraph INTER[&quot;Intercepteurs Axios&quot;]
+        REQ[&quot;Requête : + Authorization Bearer,&lt;br/&gt;+ X-Request-ID, mesure durée&quot;]
+        RES[&quot;Réponse : 401 → POST /auth/refresh/&lt;br/&gt;(file d&#x27;attente anti-boucle) → retry,&lt;br/&gt;échec → logout + /login&quot;]
+    end
+
+    API --&gt; REQ --&gt; RES
+    RES --&gt;|&quot;GET/POST /api/v1/...&quot;| NGX[&quot;Nginx&quot;]
+    NGX --&gt; DJ[&quot;Django DRF&quot;]
+
+    ST[&quot;&lt;b&gt;modules/auth/store/authStore.ts&lt;/b&gt;&lt;br/&gt;Zustand + persist (localStorage)&lt;br/&gt;accessToken / refreshToken / user / permissions&quot;] --- AL
+    ST --- PR</pre>
+<ul><li>Chaque dossier <code>frontend/src/modules/&lt;module&gt;</code> = <strong>pages + api/ + store</strong>, miroir d'une app Django.</li><li>Pas de WebSocket : tout est HTTP + polling ; le temps réel est géré par le refresh automatique des données.</li><li>Vite sert l'app sur <code>:3000</code> avec HMR ; Nginx lui sert le reste des URLs non-API.</li></ul>
+<hr>
+<h2>4. Backend — applications métier et leurs dépendances</h2>
+<pre class="mermaid">flowchart TD
+    subgraph AUTH[&quot;Accès &amp; identité&quot;]
+        AUTHZ[&quot;authentication&lt;br/&gt;JWT login/logout/refresh/me&quot;]
+        USERS[&quot;users&lt;br/&gt;rôles &amp; permissions&quot;]
+        DEPT[&quot;departments&quot;]
+        ORG[&quot;organization&lt;br/&gt;bureaux, fonctions, grades&quot;]
+        ADMIN[&quot;administration&lt;br/&gt;settings, matrice d&#x27;approbation,&lt;br/&gt;règles de workflow, audit-logs&quot;]
+    end
+
+    subgraph CORE_DOM[&quot;Population&quot;]
+        EMP[&quot;&lt;b&gt;employees&lt;/b&gt;&lt;br/&gt;dossiers employés&quot;]
+        BEN[&quot;beneficiaries&lt;br/&gt;ayants droit&quot;]
+    end
+
+    subgraph PREST[&quot;Prestations &amp; engagement&quot;]
+        BENE[&quot;&lt;b&gt;benefits&lt;/b&gt;&lt;br/&gt;prestations (workflow)&quot;]
+        LOAN[&quot;loans&lt;br/&gt;prêts (workflow)&quot;]
+        MED[&quot;&lt;b&gt;medical_coverage&lt;/b&gt;&lt;br/&gt;demandes, bons, prestataires&quot;]
+        CONV[&quot;&lt;b&gt;conventions&lt;/b&gt;&lt;br/&gt;partenaires &amp; conventions&quot;]
+        INV[&quot;&lt;b&gt;invoicing&lt;/b&gt;&lt;br/&gt;factures prestataires&quot;]
+        FIN[&quot;&lt;b&gt;finance&lt;/b&gt;&lt;br/&gt;budgets, lots &amp; paiements&quot;]
+    end
+
+    subgraph RES[&quot;Restitution&quot;]
+        REP[&quot;reporting&lt;br/&gt;exports &amp; planification&quot;]
+        DASH[&quot;dashboard&lt;br/&gt;KPIs&quot;]
+        MON[&quot;monitoring&lt;br/&gt;santé API &amp; métriques&quot;]
+        AI[&quot;shared/ai&lt;br/&gt;scoring, anomalies, forecast&quot;]
+    end
+
+    AUTHZ --&gt; USERS
+    DEPT --&gt; EMP
+    EMP --&gt; BEN &amp; BENE &amp; LOAN &amp; MED
+    BEN --&gt; BENE
+    BENE --&gt; MED
+    CONV --&gt; MED
+    MED --&gt; INV
+    INV --&gt; CONV
+    BENE --&gt; FIN
+    FIN --&gt; BENE
+    REP --&gt; EMP &amp; BEN &amp; BENE &amp; FIN &amp; DEPT &amp; USERS
+    DASH --&gt; REP
+    AI --&gt; BEN &amp; EMP &amp; FIN &amp; REP &amp; DEPT
+    LOAN --&gt; ADMIN
+    MED --&gt; ADMIN
+    ADMIN --&gt; AUTHZ
+    ORG -.-&gt; ADMIN</pre>
+<p>*Lecture : une flèche <code>A → B</code> signifie « l'app A importe/consomme l'app B » (relevé par grep des <code>from apps.*</code> dans <code>backend/apps</code>).*</p>
+<p><strong>Modules exposés dans <code>config/urls.py</code></strong> sous <code>/api/v1/</code> : <code>auth, users, departments, employees, beneficiaries, benefits, loans, finance, conventions, reporting, dashboard, notifications, monitoring, medical-coverage, invoicing, admin, organization, tenants, audit, ai, documents</code> + <code>health/health/live/health/ready</code> (publics), <code>/api/schema/</code> et <code>/api/docs/</code> (OpenAPI/Swagger via drf-spectacular).</p>
+<hr>
+<h2>5. Transversal — <code>core/</code> et <code>shared/</code> (les briques réutilisables)</h2>
+<pre class="mermaid">flowchart LR
+    subgraph REQ_IN[&quot;Entrée requête&quot;]
+        MW[&quot;core/middleware&lt;br/&gt;CorrelationID, CSRF exempt API&quot;]
+        TEN[&quot;shared/tenant&quot;]
+        AUD[&quot;shared/audit&lt;br/&gt;journal d&#x27;audit&quot;]
+        APM[&quot;apps/monitoring&lt;br/&gt;APIMonitoringMiddleware&quot;]
+    end
+
+    subgraph BRIQUES[&quot;Briques de domaine&quot;]
+        WF[&quot;&lt;b&gt;shared/workflow&lt;/b&gt;&lt;br/&gt;WorkflowEngine : états, transitions,&lt;br/&gt;rôles autorisés, hooks avant/après&quot;]
+        NOTIF[&quot;shared/notifications&lt;br/&gt;Notification + préférences + email&quot;]
+        DOCS[&quot;shared/documents&lt;br/&gt;pièces jointes → media/&quot;]
+        REPO[&quot;shared/reporting&lt;br/&gt;agrégations &amp; exports&quot;]
+        AIENG[&quot;shared/ai&lt;br/&gt;scoring, anomalies, prévision,&lt;br/&gt;recommandations&quot;]
+        RBAC[&quot;shared/permissions (RBAC)&quot;]
+        WH[&quot;shared/warehouse&lt;br/&gt;entrepôt analytique&quot;]
+        REG[&quot;shared/registry&lt;br/&gt;référentiels&quot;]
+    end
+
+    subgraph KERNEL[&quot;kernel Django&quot;]
+        CORE[&quot;core/: BaseModel, managers,&lt;br/&gt;pagination (25/page), exceptions,&lt;br/&gt;permissions (IsAdmin, HasRoles…)&quot;]
+        ST[&quot;Django simple_history&lt;br/&gt;historique des lignes&quot;]
+    end
+
+    WF --&gt; CORE
+    AUD --&gt; ST
+    NOTIF --&gt; CORE
+    DOCS --&gt; CORE
+    REPO --&gt; CORE
+    AIENG --&gt; REPO
+    REQ_IN --&gt; BRIQUES
+    BRIQUES --&gt; KERNEL</pre>
+<p><strong>WorkflowMixin</strong> est branché sur <code>Benefit</code>, <code>MedicalCoverageVoucher</code>, <code>MedicalCoverageRequest</code> et <code>Loan</code> : la machine à états est déclarée (<code>apps/&lt;module&gt;/workflow.py</code>) et peut être <strong>surchargée par la base</strong> (<code>WorkflowRule</code> gérée depuis l'écran *Administration → Règles de workflow*).</p>
+<hr>
+<h2>6. Séquence — authentification JWT</h2>
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant B as Navigateur
+    participant F as apiClient.ts (Axios)
+    participant N as Nginx
+    participant D as Django (authentication)
+    participant DB as PostgreSQL
+
+    B-&gt;&gt;F: submit login (email + mot de passe)
+    F-&gt;&gt;N: POST /api/v1/auth/login/
+    Note over N: rate-limit 5 req/min
+    N-&gt;&gt;D: proxy_pass → LoginView (throttle AnonRateThrottle)
+    D-&gt;&gt;DB: vérifie credentials (Axes : 5 échecs → blocage 30 min)
+    D--&gt;&gt;F: 200 {access, refresh} + profil + permissions
+    F-&gt;&gt;F: authStore.setTokens() → Zustand persist (localStorage)
+    F--&gt;&gt;B: redirection vers /dashboard
+
+    loop à chaque requête protégée
+        B-&gt;&gt;F: action utilisateur
+        F-&gt;&gt;N: GET /api/v1/... + Authorization: Bearer
+        N-&gt;&gt;D: JWTAuthentication
+        D--&gt;&gt;F: 200 données
+    end
+
+    Note over F,D: access token expiré
+    F-&gt;&gt;N: POST /api/v1/auth/refresh/
+    N-&gt;&gt;D: TokenRefreshView (rotation)
+    D--&gt;&gt;F: nouveau access token
+    Note over F: si le refresh échoue → logout → /login</pre>
+<hr>
+<h2>7. Flux métier — une prestation (cœur du domaine)</h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; draft: création
+    draft --&gt; submitted: Soumettre&lt;br/&gt;(admin, gestionnaire, department_manager)
+    draft --&gt; cancelled: Annuler
+    submitted --&gt; under_review: Prendre en charge
+    submitted --&gt; on_hold: Mettre en attente
+    submitted --&gt; validated: Valider directement
+    submitted --&gt; rejected: Rejeter
+    submitted --&gt; cancelled: Annuler
+    on_hold --&gt; submitted: Re-soumettre
+    under_review --&gt; on_hold: Mettre en attente
+    under_review --&gt; validated: Valider&lt;br/&gt;(admin, gestionnaire, department_manager)
+    under_review --&gt; rejected: Rejeter
+    validated --&gt; paid: Confirmer le paiement&lt;br/&gt;→ création Payment (finance)
+    validated --&gt; rejected: Rejeter après validation
+    rejected --&gt; [*]
+    paid --&gt; [*]
+    cancelled --&gt; [*]</pre>
+<p><strong>Effets de bord d'une transition</strong> (hooks du moteur, <code>apps/benefits/workflow.py</code>) :</p>
+<pre class="mermaid">sequenceDiagram
+    actor U as Utilisateur
+    participant FE as Page React
+    participant API as DRF (BenefitViewSet)
+    participant WFE as WorkflowEngine
+    participant DB as PostgreSQL
+    participant CL as Celery worker
+    participant EM as MailHog
+
+    U-&gt;&gt;FE: cliquer « Valider »
+    FE-&gt;&gt;API: POST /api/v1/benefits/:id/transition/
+    API-&gt;&gt;WFE: can_transition() → transition()
+    WFE-&gt;&gt;WFE: vérifie rôle autorisé + règle en base
+    WFE-&gt;&gt;DB: UPDATE workflow_state + simple_history
+    WFE-&gt;&gt;DB: INSERT audit log + notification in-app
+    WFE--)CL: notify_benefit_transition.delay(...)
+    CL--)EM: envoi email de notification
+    API--&gt;&gt;FE: 200 {état, transitions disponibles}
+    FE--&gt;&gt;U: badge d&#x27;état mis à jour</pre>
+<p><strong>Chemin prestation → paiement (flux transversal) :</strong></p>
+<pre class="mermaid">flowchart LR
+    EMP[&quot;Employee&quot;] --&gt; BENF[&quot;Beneficiary&quot;]
+    BENF --&gt; B[&quot;Benefit&lt;br/&gt;(workflow)&quot;]
+    B --&gt;|&quot;validée → payée&quot;| P[&quot;Payment&lt;br/&gt;+ PaymentBatch + FinancialEntry&quot;]
+    B --&gt; BL[&quot;BudgetLine&lt;br/&gt;consommation du budget&quot;]
+    MED[&quot;MedicalCoverageRequest&quot;] --&gt; V[&quot;MedicalCoverageVoucher&lt;br/&gt;(bon)&quot;]
+    V --&gt;|&quot;consommé&quot;| INV[&quot;ProviderInvoice&lt;br/&gt;+ InvoiceLine, VoucherConsumption&quot;]
+    CONV[&quot;Convention / Partner&quot;] --&gt; MED
+    INV --&gt; PAY2[&quot;Validation → paiement prestataire&quot;]
+    B &amp; P &amp; INV --&gt; REP[&quot;reporting / dashboard (KPIs)&quot;]</pre>
+<hr>
+<h2>8. Couche asynchrone — Celery</h2>
+<pre class="mermaid">flowchart LR
+    subgraph SYNC[&quot;Synchronique (requête HTTP)&quot;]
+        APIV[&quot;Vue DRF qui appelle .delay()&quot;]
+        SIG[&quot;signaux post_save (audit, notifications)&quot;]
+    end
+
+    subgraph BROK[&quot;Redis (broker + result backend)&quot;]
+        Q[(&quot;file de tâches&quot;)]
+    end
+
+    subgraph WORK[&quot;Celery worker (--concurrency=2)&quot;]
+        T1[&quot;benefits.notify_benefit_transition&lt;br/&gt;(retry ×3, 60 s)&quot;]
+        T2[&quot;loans.notify_loan_transition&quot;]
+        T3[&quot;notifications.send_notification_email&lt;br/&gt;+ send_digest_emails + cleanup&quot;]
+        T4[&quot;reporting.snapshot_kpis / generate_scheduled_reports&lt;br/&gt;/ cleanup_old_exports&quot;]
+        T5[&quot;conventions.check_convention_expirations&quot;]
+        T6[&quot;monitoring.aggregate_api_metrics&lt;br/&gt;/ monitor_endpoint_health / cleanup&quot;]
+        T7[&quot;ai.run_ai_pipeline (scoring, anomalies,&lt;br/&gt;forecast, recommandations)&quot;]
+    end
+
+    subgraph OUT[&quot;Sorties&quot;]
+        PG[(&quot;PostgreSQL&lt;br/&gt;résultats, notifications, métriques&quot;)]
+        MAIL[&quot;MailHog :1025 → UI :8025&quot;]
+        MED2[&quot;Documents / exports&quot;]
+    end
+
+    APIV --&gt; Q
+    SIG --&gt; Q
+    Q --&gt; T1 &amp; T2 &amp; T3 &amp; T4 &amp; T5 &amp; T6 &amp; T7
+    T1 &amp; T2 &amp; T3 --&gt; MAIL
+    T1 &amp; T2 &amp; T3 &amp; T4 &amp; T5 &amp; T6 &amp; T7 --&gt; PG
+    T4 --&gt; MED2</pre>
+<blockquote><p><strong>Point d'attention constaté :</strong> le scheduler est <code>django_celery_beat.schedulers:DatabaseScheduler</code>, or la table <code>django_celery_beat_periodictask</code> ne contient <strong>qu'une seule</strong> tâche (<code>celery.backend_cleanup</code>, tous les jours à 04:00). Les tâches métier (<code>snapshot_kpis</code>, <code>check_convention_expirations</code>, <code>generate_scheduled_reports</code>, <code>run_ai_pipeline</code>, <code>aggregate_api_metrics</code>, <code>send_digest_emails</code>…) sont donc <strong>définies mais non planifiées</strong> : elles ne s'exécutent que si on les déclenche à la main (<code>celery -A config call &lt;task&gt;</code>). Ajouter les entrées correspondantes (interface *Administration* ou migration) activerait la rotation des KPIs, des rappels de conventions et des rapports planifiés.</p></blockquote>
+<hr>
+<h2>9. Cartographie frontend ↔ API</h2>
+<table><thead><tr><th>Module React (<code>frontend/src/modules/</code>)</th><th>Point d'entrée API (<code>/api/v1/</code>)</th><th>App Django</th></tr></thead><tbody><tr><td><code>auth</code></td><td><code>/auth/</code>, <code>/users/me/</code></td><td>authentication, users</td></tr><tr><td><code>dashboard</code>, <code>analytics</code></td><td><code>/dashboard/</code>, <code>/reporting/</code></td><td>dashboard, reporting</td></tr><tr><td><code>employees</code>, <code>beneficiaries</code></td><td><code>/employees/</code>, <code>/beneficiaries/</code></td><td>employees, beneficiaries</td></tr><tr><td><code>benefits</code>, <code>loans</code></td><td><code>/benefits/</code>, <code>/loans/</code></td><td>benefits, loans</td></tr><tr><td><code>finance</code></td><td><code>/finance/</code></td><td>finance</td></tr><tr><td><code>conventions</code></td><td><code>/conventions/</code></td><td>conventions</td></tr><tr><td><code>medical-coverage</code>, <code>invoicing</code></td><td><code>/medical-coverage/</code>, <code>/invoicing/</code></td><td>medical_coverage, invoicing</td></tr><tr><td><code>users</code>, <code>organization</code>, <code>administration</code></td><td><code>/users/</code>, <code>/organization/</code>, <code>/admin/</code></td><td>users, organization, administration</td></tr><tr><td><code>monitoring</code>, <code>notifications</code>, <code>documents</code>, <code>ai</code></td><td><code>/monitoring/</code>, <code>/notifications/</code>, <code>/documents/</code>, <code>/ai/</code></td><td>apps + shared/*</td></tr></tbody></table>
+<hr>
+<h2>10. Enchaînement type (synthèse)</h2>
+<pre class="mermaid">flowchart LR
+    A[&quot;1. Login&quot;] --&gt; B[&quot;2. Dashboard / KPIs&quot;]
+    B --&gt; C[&quot;3. Créer un employé&lt;br/&gt;+ ayant droits&quot;]
+    C --&gt; D[&quot;4. Déposer une prestation&lt;br/&gt;ou une demande de couverture&quot;]
+    D --&gt; E[&quot;5. Circuit de validation&lt;br/&gt;(workflow + matrice d&#x27;approbation)&quot;]
+    E --&gt; F[&quot;6. Paiement / bon consommé&lt;br/&gt;+ facture prestataire&quot;]
+    F --&gt; G[&quot;7. Budget &amp; finance&quot;]
+    G --&gt; H[&quot;8. Reporting, audit,&lt;br/&gt;monitoring, IA&quot;]
+    H --&gt;|&quot;rétroaction (KPIs, règles)&quot;--&gt; E</pre>
+<hr>
+<h3>Où regarder dans le code</h3>
+<table><thead><tr><th>Question</th><th>Fichier</th></tr></thead><tbody><tr><td>Routage API complet</td><td><code>backend/config/urls.py</code></td></tr><tr><td>Pile middleware</td><td><code>backend/config/settings/base.py</code> (L81)</td></tr><tr><td>Routage Nginx</td><td><code>nginx/conf.d/default.conf</code></td></tr><tr><td>Moteur de workflow</td><td><code>backend/shared/workflow/engine.py</code> + <code>backend/apps/benefits/workflow.py</code></td></tr><tr><td>Permissions backend</td><td><code>backend/core/permissions.py</code>, <code>HasModuleAccess</code></td></tr><tr><td>Routes React / RBAC</td><td><code>frontend/src/app/router.tsx</code>, <code>shared/components/layout/ProtectedRoute.tsx</code></td></tr><tr><td>Client HTTP + refresh JWT</td><td><code>frontend/src/shared/api/apiClient.ts</code></td></tr><tr><td>Tâches Celery</td><td><code>backend/apps/*/tasks.py</code>, <code>backend/shared/*/tasks.py</code></td></tr><tr><td>Conteneurs &amp; volumes</td><td><code>docker-compose.yml</code></td></tr></tbody></table>
+<footer>Généré depuis <code>synoptic-components.md</code> par
+<code>build_synoptic_html.py</code> — relancez le script après édition du Markdown.</footer>
+</main>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "neutral",
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" },
+    sequence: { useMaxWidth: true },
+    state: { useMaxWidth: true }
+  });
+</script>
+</body>
+</html>

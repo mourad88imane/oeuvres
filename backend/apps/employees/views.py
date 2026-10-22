@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdmin, IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 from django.http import HttpResponse
 
 from .models import Employee
@@ -51,11 +51,7 @@ class EmployeeViewSet(TenantViewSetMixin, ModelViewSet):
         return EmployeeDetailSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "history", "statistics", "business_history"):
-            return [IsAuthenticated(), IsAdminOrGestionnaire()]
-        if self.action == "destroy":
-            return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated(), IsAdminOrGestionnaire()]
+        return [IsAuthenticated(), HasModuleAccess("employees")()]
 
     def get_queryset(self):
         params = self.request.query_params

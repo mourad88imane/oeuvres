@@ -40,7 +40,7 @@ export function PaymentsPage() {
           <button onClick={() => refetch()} className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
-          <RoleGuard roles={["admin","comptable"]}>
+          <RoleGuard permission="finance.export">
             <button onClick={() => exportMut.mutate(filters)} disabled={exportMut.isPending}
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
               <Download className="w-4 h-4" />{t("finance.exportExcel")}

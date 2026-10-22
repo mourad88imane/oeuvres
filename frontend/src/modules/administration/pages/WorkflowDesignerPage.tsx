@@ -12,6 +12,7 @@ import {
   addRoleToTransition, removeRoleFromTransition,
   fetchRoles,
 } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 export function WorkflowDesignerPage() {
   const { t } = useTranslation();
@@ -163,12 +164,16 @@ export function WorkflowDesignerPage() {
       title: "Actions", key: "actions", width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Tooltip title="Modifier">
-            <Button size="small" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleStateEdit(record)} />
-          </Tooltip>
-          <Popconfirm title="Supprimer cet état ?" onConfirm={() => handleStateDelete(record.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_workflow">
+            <Tooltip title="Modifier">
+              <Button size="small" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleStateEdit(record)} />
+            </Tooltip>
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_workflow">
+            <Popconfirm title="Supprimer cet état ?" onConfirm={() => handleStateDelete(record.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -212,12 +217,16 @@ export function WorkflowDesignerPage() {
       title: "Actions", key: "actions", width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Tooltip title="Modifier">
-            <Button size="small" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleTransitionEdit(record)} />
-          </Tooltip>
-          <Popconfirm title="Supprimer cette transition ?" onConfirm={() => handleTransitionDelete(record.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_workflow">
+            <Tooltip title="Modifier">
+              <Button size="small" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => handleTransitionEdit(record)} />
+            </Tooltip>
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_workflow">
+            <Popconfirm title="Supprimer cette transition ?" onConfirm={() => handleTransitionDelete(record.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -269,10 +278,12 @@ export function WorkflowDesignerPage() {
                 children: (
                   <div className="space-y-4">
                     <div className="flex justify-end">
-                      <Button type="primary" icon={<Plus className="w-4 h-4" />}
-                        onClick={() => { setEditingState(null); stateForm.resetFields(); setStateModalOpen(true); }}>
-                        Nouvel état
-                      </Button>
+                      <RoleGuard permission="admin.manage_workflow">
+                        <Button type="primary" icon={<Plus className="w-4 h-4" />}
+                          onClick={() => { setEditingState(null); stateForm.resetFields(); setStateModalOpen(true); }}>
+                          Nouvel état
+                        </Button>
+                      </RoleGuard>
                     </div>
                     <Table dataSource={states} columns={stateColumns} rowKey="id"
                       loading={loading} pagination={{ pageSize: 50 }} size="middle" />
@@ -290,10 +301,12 @@ export function WorkflowDesignerPage() {
                 children: (
                   <div className="space-y-4">
                     <div className="flex justify-end">
-                      <Button type="primary" icon={<Plus className="w-4 h-4" />}
-                        onClick={() => { setEditingTransition(null); transitionForm.resetFields(); setTransitionModalOpen(true); }}>
-                        Nouvelle transition
-                      </Button>
+                      <RoleGuard permission="admin.manage_workflow">
+                        <Button type="primary" icon={<Plus className="w-4 h-4" />}
+                          onClick={() => { setEditingTransition(null); transitionForm.resetFields(); setTransitionModalOpen(true); }}>
+                          Nouvelle transition
+                        </Button>
+                      </RoleGuard>
                     </div>
                     <Table dataSource={transitions} columns={transitionColumns} rowKey="id"
                       loading={loading} pagination={{ pageSize: 50 }} size="middle" />

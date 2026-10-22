@@ -5,6 +5,7 @@ import {
 import { GitBranch, Plus, Trash2 } from "lucide-react";
 import { fetchWorkflowPermissions, createWorkflowPermission, deleteWorkflowPermission } from "../api";
 import { fetchRoles } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 const APP_LABELS = ["loans", "medical_coverage", "benefits", "conventions"];
 const MODEL_NAMES = ["loan", "medicalcoveragevoucher", "medicalcoveragerequest", "benefit", "convention"];
@@ -54,9 +55,11 @@ export function WorkflowRulesPage() {
     {
       title: "Actions", key: "actions", width: 80,
       render: (_: any, record: any) => (
-        <Popconfirm title="Supprimer cette règle ?" onConfirm={() => handleDelete(record.id)}>
-          <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-        </Popconfirm>
+        <RoleGuard permission="admin.manage_workflow">
+          <Popconfirm title="Supprimer cette règle ?" onConfirm={() => handleDelete(record.id)}>
+            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+          </Popconfirm>
+        </RoleGuard>
       ),
     },
   ];
@@ -73,9 +76,11 @@ export function WorkflowRulesPage() {
             <p className="text-sm text-gray-500">Configuration des transitions par rôle</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
-          Nouvelle règle
-        </Button>
+        <RoleGuard permission="admin.manage_workflow">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
+            Nouvelle règle
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card>

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Card, Modal, Form, Input, InputNumber, Switch, Table, Space, Popconfirm, message } from "antd";
 import { Plus, Edit2, Trash2, Layers } from "lucide-react";
 import { fetchGrades, createGrade, updateGrade, deleteGrade, type GradeItem } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 export function GradesPage() {
   const { t } = useTranslation();
@@ -62,10 +63,14 @@ export function GradesPage() {
       title: t("grades.actions"), key: "actions", width: 100,
       render: (_: any, r: GradeItem) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(r)} />
-          <Popconfirm title={t("grades.confirmDelete")} onConfirm={() => handleDelete(r.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_system_params">
+            <Button size="small" icon={<Edit2 className="w-3 h-3" />} onClick={() => openModal(r)} />
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_system_params">
+            <Popconfirm title={t("grades.confirmDelete")} onConfirm={() => handleDelete(r.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3 h-3" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -83,9 +88,11 @@ export function GradesPage() {
             <p className="text-sm text-gray-500">{t("grades.pageDescription")}</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openModal()}>
-          {t("grades.newGrade")}
-        </Button>
+        <RoleGuard permission="admin.manage_system_params">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openModal()}>
+            {t("grades.newGrade")}
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card loading={loading}>

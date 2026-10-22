@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdminOrGestionnaire, IsAdminOrReadOnly
+from core.permissions import HasAnyModuleAccess, HasModuleAccess
 from shared.tenant.mixins import TenantViewSetMixin
 from django.utils import timezone
 
@@ -36,7 +36,12 @@ alert_service = ConventionAlertService()
 class PartnerViewSet(viewsets.ModelViewSet):
     queryset = partner_service.get_queryset()
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("conventions")]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve", "has_active_convention"):
+            return [IsAuthenticated(), HasAnyModuleAccess("conventions", "medical_coverage", "invoice")()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -84,7 +89,7 @@ class PartnerViewSet(viewsets.ModelViewSet):
 class ConventionViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
     queryset = convention_service.get_queryset()
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("conventions")]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -220,7 +225,7 @@ class ConventionViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
 class ConventionDocumentViewSet(viewsets.ModelViewSet):
     queryset = ConventionDocument.objects.filter(is_deleted=False)
     serializer_class = ConventionDocumentSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, HasModuleAccess("conventions")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -237,7 +242,7 @@ class ConventionAlertViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = alert_service.get_queryset()
     serializer_class = ConventionAlertSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrGestionnaire]
+    permission_classes = [IsAuthenticated, HasModuleAccess("conventions")]
 
     def get_queryset(self):
         qs = super().get_queryset()

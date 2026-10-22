@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft, Save, Search, AlertTriangle, CheckCircle2,
-  User, X, Printer, Eye, Loader2, Building2, Syringe,
+  User, X, Eye, Loader2, Building2, Syringe,
   Scan, Stethoscope, Calendar, FileText, Users, Clock,
   ChevronDown, Ban,
 } from "lucide-react";
@@ -15,7 +15,7 @@ import { employeeApi } from "@modules/employees/api";
 import type { EmployeeListItem } from "@modules/employees/types";
 import { usePartners } from "@modules/conventions/api";
 import type { EmployeeEligibilityResponse } from "../types/request";
-import { ELIGIBILITY_UI, REQUEST_STATUS_UI } from "../types/request";
+import { ELIGIBILITY_UI, REQUEST_STATUS_UI, statusLabel } from "../types/request";
 import type { RequestStatus } from "../types/request";
 import { medicalCoverageApi } from "../api";
 import apiClient from "@shared/api/apiClient";
@@ -32,16 +32,14 @@ const CATEGORY_PARTNER_TYPE: Record<string, string> = {
   center: "medical_center",
 };
 
+const MARITAL_LABELS: Record<string, string> = {
+  single: "Célibataire",
+  married: "Marié(e)",
+  divorced: "Divorcé(e)",
+  widowed: "Veuf/Veuve",
+};
 
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 export function NewCoverageRequestPage() {
   const navigate = useNavigate();
@@ -69,7 +67,6 @@ export function NewCoverageRequestPage() {
   const [observation, setObservation] = useState("");
 
   const [createdId, setCreatedId] = useState<string | null>(null);
-  const [printLoading, setPrintLoading] = useState(false);
   const [hasActiveConvention, setHasActiveConvention] = useState<boolean | null>(null);
   const [checkingConvention, setCheckingConvention] = useState(false);
 
@@ -99,22 +96,25 @@ export function NewCoverageRequestPage() {
   useEffect(() => {
     if (selectedEmployee && category) {
       setDataLoading(true);
+      const beneficiaryId = beneficiaryType === "dependent" && selectedDependent ? selectedDependent : undefined;
       Promise.all([
-        coverageRequestApi.getEmployeeEligibility(selectedEmployee.id, category),
+        coverageRequestApi.getEmployeeEligibility(selectedEmployee.id, category, beneficiaryId),
         medicalCoverageApi.getEmployeeInfo(selectedEmployee.id, category),
       ]).then(([eligRes, infoRes]) => {
+        const eligibilityVoucher = eligRes.data.data.voucher_eligibility;
+        const infoEligibility = infoRes.data.data.eligibility;
         const merged: EmployeeEligibilityResponse = {
           ...eligRes.data.data,
           voucher_summary: infoRes.data.data.summary,
-          voucher_eligibility: {
-            is_eligible: infoRes.data.data.eligibility?.is_eligible ?? true,
-            messages: infoRes.data.data.eligibility?.messages ?? [],
-            next_eligible_date: infoRes.data.data.eligibility?.next_eligible_date ?? null,
-            last_voucher_date: infoRes.data.data.eligibility?.last_voucher_date ?? null,
-            last_voucher_reference: infoRes.data.data.eligibility?.last_voucher_reference ?? null,
-            count_last_3_months: infoRes.data.data.eligibility?.count_last_3_months ?? 0,
-            count_current_year: infoRes.data.data.eligibility?.count_current_year ?? 0,
-            remaining: infoRes.data.data.eligibility?.remaining ?? 0,
+          voucher_eligibility: eligibilityVoucher ?? {
+            is_eligible: infoEligibility?.is_eligible ?? true,
+            messages: infoEligibility?.messages ?? [],
+            next_eligible_date: infoEligibility?.next_eligible_date ?? null,
+            last_voucher_date: infoEligibility?.last_voucher_date ?? null,
+            last_voucher_reference: infoEligibility?.last_voucher_reference ?? null,
+            count_last_3_months: infoEligibility?.count_last_3_months ?? 0,
+            count_current_year: infoEligibility?.count_current_year ?? 0,
+            remaining: infoEligibility?.remaining ?? 0,
           },
           employee: {
             ...eligRes.data.data.employee,
@@ -123,13 +123,20 @@ export function NewCoverageRequestPage() {
               ? MARITAL_LABELS[infoRes.data.data.employee.marital_status] || infoRes.data.data.employee.marital_status
               : "",
           },
-          beneficiaries: infoRes.data.data.dependents?.map((d: any) => ({
-            id: d.id,
-            full_name: d.full_name,
-            relationship: d.relationship,
-            relationship_display: d.relationship_display,
-            is_eligible: true,
-          })) ?? [],
+          beneficiaries: (() => {
+            // Respecte l'éligibilité RÉELLE des ayants droit (valeur backend),
+            // au lieu de forcer is_eligible: true.
+            const eligMap = new Map(
+              (eligRes.data.data.beneficiaries ?? []).map((b: any) => [b.id, b.is_eligible])
+            );
+            return (infoRes.data.data.dependents ?? []).map((d: any) => ({
+              id: d.id,
+              full_name: d.full_name,
+              relationship: d.relationship,
+              relationship_display: d.relationship_display,
+              is_eligible: eligMap.get(d.id) ?? true,
+            }));
+          })(),
         };
         setEmployeeData(merged);
         setDataLoading(false);
@@ -140,7 +147,7 @@ export function NewCoverageRequestPage() {
     } else {
       setEmployeeData(null);
     }
-  }, [selectedEmployee, category]);
+  }, [selectedEmployee, category, beneficiaryType, selectedDependent]);
 
   useEffect(() => {
     if (!partnerId) { setHasActiveConvention(null); return; }
@@ -151,7 +158,7 @@ export function NewCoverageRequestPage() {
       .finally(() => setCheckingConvention(false));
   }, [partnerId]);
 
-  const handleSubmit = async (action: "save" | "print") => {
+  const handleSubmit = async () => {
     if (!selectedEmployee) { toast.error(t("coverageRequest.selectEmployeeError")); return; }
     if (!category) { toast.error(t("coverageRequest.selectCategoryError")); return; }
     if (!partnerId) { toast.error(t("coverageRequest.selectPartnerError")); return; }
@@ -172,10 +179,6 @@ export function NewCoverageRequestPage() {
       const result = await createMut.mutateAsync(payload);
       setCreatedId(result.id);
       toast.success(t("coverageRequest.creationSuccess"));
-      if (action === "print") {
-        const resp = await coverageRequestApi.downloadPdf(result.id);
-        downloadBlob(resp.data, `demande-${result.id}.pdf`);
-      }
     } catch (err: any) {
       const msg = err?.response?.data?.message
         || err?.response?.data?.detail
@@ -184,55 +187,24 @@ export function NewCoverageRequestPage() {
     }
   };
 
-  const handlePrint = async () => {
-    if (!createdId) return;
-    setPrintLoading(true);
-    try {
-      const resp = await coverageRequestApi.downloadPdf(createdId);
-      downloadBlob(resp.data, `demande-${createdId}.pdf`);
-    } catch {
-      toast.error(t("coverageRequest.pdfDownloadError"));
-    } finally {
-      setPrintLoading(false);
-    }
-  };
-
-  const createdWorkflowState = createMut.data?.workflow_state;
-  const isCreatedPending = createdWorkflowState === "pending_manager_approval";
-
   if (createdId) {
     return (
       <div className="max-w-2xl mx-auto py-12">
         <div className="bg-white rounded-[32px] p-8 text-center space-y-6"
           style={{ border: "1px solid rgba(0,0,0,0.04)" }}>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-            style={{ background: isCreatedPending ? "rgba(249,115,22,0.1)" : "rgba(34,197,94,0.1)" }}>
-            {isCreatedPending ? (
-              <Clock className="w-8 h-8" style={{ color: "#f97316" }} />
-            ) : (
-              <CheckCircle2 className="w-8 h-8" style={{ color: "#16a34a" }} />
-            )}
+            style={{ background: "rgba(34,197,94,0.1)" }}>
+            <CheckCircle2 className="w-8 h-8" style={{ color: "#16a34a" }} />
           </div>
           <div>
             <h2 className="text-lg font-bold" style={{ color: "#1a1917" }}>
               {t("coverageRequest.requestCreatedTitle", { ref: createdId.slice(0, 8) })}
             </h2>
             <p className="text-sm mt-1" style={{ color: "#8a8882" }}>
-              {isCreatedPending
-                ? t("coverageRequest.sentForApproval")
-                : t("coverageRequest.approvedAndPrintable")}
+              {t("coverageRequest.requestCreatedDesc")}
             </p>
           </div>
           <div className="flex justify-center gap-3 pt-2">
-            <button
-              onClick={handlePrint}
-              disabled={printLoading || isCreatedPending}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-40"
-              style={{ background: "#ffda2d", color: "#1a1917" }}
-            >
-              {printLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              {t("coverageWizard.print")}
-            </button>
             <button
               onClick={() => navigate(`/medical-coverage/requests/${createdId}`)}
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all"
@@ -242,11 +214,6 @@ export function NewCoverageRequestPage() {
               {t("coverageRequest.viewRequest")}
             </button>
           </div>
-          {isCreatedPending && (
-            <p className="text-xs font-medium" style={{ color: "#f97316" }}>
-              {t("coverageRequest.printAfterApproval")}
-            </p>
-          )}
           <button
             onClick={() => navigate(`/medical-coverage/${category}`)}
             className="text-sm font-bold transition-colors"
@@ -408,7 +375,8 @@ export function NewCoverageRequestPage() {
               </div>
             )}
 
-            {/* STEP 3 — Employé */}
+            {/* STEP 3 — Employé (uniquement après catégorie + partenaire) */}
+            {category && partnerId && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-1 h-5 rounded-full" style={{ background: "#ffda2d" }} />
@@ -490,6 +458,7 @@ export function NewCoverageRequestPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* STEP 4 — Bénéficiaire (shown after employee) */}
             {selectedEmployee && (
@@ -528,28 +497,39 @@ export function NewCoverageRequestPage() {
                   <>
                     {employeeData?.beneficiaries && employeeData.beneficiaries.length > 0 ? (
                       <div className="space-y-2">
-                        {employeeData.beneficiaries.map((b: any) => (
-                          <button
-                            key={b.id}
-                            onClick={() => setSelectedDependent(b.id)}
-                            className={`w-full flex items-center justify-between p-3.5 rounded-2xl text-sm font-medium transition-all ${selectedDependent === b.id ? "ring-2 ring-[#ffda2d]" : ""}`}
-                            style={{
-                              background: selectedDependent === b.id ? "rgba(255,218,45,0.08)" : "#f3f2ee",
-                              color: "#1a1917",
-                            }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold"
-                                style={{ background: selectedDependent === b.id ? "#ffda2d" : "rgba(0,0,0,0.04)" }}>
-                                {b.full_name.split(" ").map((s: string) => s[0]).join("").slice(0, 2).toUpperCase()}
+                        {employeeData.beneficiaries.map((b: any) => {
+                          const ineligible = b.is_eligible === false;
+                          return (
+                            <button
+                              key={b.id}
+                              onClick={() => { if (!ineligible) setSelectedDependent(b.id); }}
+                              disabled={ineligible}
+                              className={`w-full flex items-center justify-between p-3.5 rounded-2xl text-sm font-medium transition-all ${selectedDependent === b.id ? "ring-2 ring-[#ffda2d]" : ""} ${ineligible ? "opacity-50 cursor-not-allowed" : ""}`}
+                              style={{
+                                background: selectedDependent === b.id ? "rgba(255,218,45,0.08)" : "#f3f2ee",
+                                color: "#1a1917",
+                              }}
+                              title={ineligible ? t("coverageRequest.ineligibleDependent") : undefined}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold"
+                                  style={{ background: selectedDependent === b.id ? "#ffda2d" : "rgba(0,0,0,0.04)" }}>
+                                  {b.full_name.split(" ").map((s: string) => s[0]).join("").slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="text-left">
+                                  <p className="font-bold">{b.full_name}</p>
+                                  <p className="text-xs font-medium" style={{ color: "#8a8882" }}>{b.relationship_display}</p>
+                                </div>
                               </div>
-                              <div className="text-left">
-                                <p className="font-bold">{b.full_name}</p>
-                                <p className="text-xs font-medium" style={{ color: "#8a8882" }}>{b.relationship_display}</p>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
+                              {ineligible && (
+                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg"
+                                  style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626" }}>
+                                  {t("coverageRequest.ineligibleDependent")}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-sm font-medium px-1" style={{ color: "#d97706" }}>
@@ -615,31 +595,13 @@ export function NewCoverageRequestPage() {
                     {t("common.cancel")}
                   </button>
                   <button
-                    onClick={() => navigate(`/medical-coverage/requests/${createdId || "new"}`)}
-                    disabled={!createdId}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-40"
-                    style={{ color: "#4d4b46", background: "#f3f2ee" }}
-                  >
-                    <Eye className="w-4 h-4" />
-                    {t("employees.view")}
-                  </button>
-                  <button
-                    onClick={() => handleSubmit("save")}
+                    onClick={() => handleSubmit()}
                     disabled={createMut.isPending || !partnerId || hasActiveConvention === false}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
                     style={{ color: "#4d4b46", background: "#f3f2ee" }}
                   >
                     {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {t("common.save")}
-                  </button>
-                  <button
-                    onClick={() => handleSubmit("print")}
-                    disabled={createMut.isPending || !partnerId || hasActiveConvention === false || employeeData?.status !== "APPROVED"}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
-                    style={{ background: "#ffda2d", color: "#1a1917" }}
-                  >
-                    {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                    {t("coverageRequest.saveAndPrint")}
                   </button>
                 </div>
                 {employeeData && employeeData.status !== "APPROVED" && (
@@ -737,6 +699,43 @@ export function NewCoverageRequestPage() {
                 )}
               </div>
 
+              {/* BONS DE PRISE EN CHARGE (données réelles du backend) */}
+              <div className="p-5" style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="w-4 h-4" style={{ color: "#4d4b46" }} />
+                  <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "#4d4b46" }}>
+                    {t("coverageRequest.voucherSummaryTitle")}
+                  </h3>
+                </div>
+                {(() => {
+                  const vs = employeeData.voucher_eligibility;
+                  const lastRef = vs?.last_voucher_reference || employeeData.voucher_summary?.last_voucher_reference;
+                  const lastDate = vs?.last_voucher_date || employeeData.voucher_summary?.last_voucher_date;
+                  const count3m = vs?.count_last_3_months ?? employeeData.voucher_summary?.count_last_3_months ?? 0;
+                  const countYear = vs?.count_current_year ?? employeeData.voucher_summary?.count_current_year ?? 0;
+                  return (
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between">
+                        <span style={{ color: "#8a8882" }}>{t("coverageRequest.lastBon")}</span>
+                        <span className="font-bold" style={{ color: "#1a1917" }}>{lastRef || "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: "#8a8882" }}>{t("coverageRequest.lastBonDate")}</span>
+                        <span className="font-bold" style={{ color: "#1a1917" }}>{lastDate || "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: "#8a8882" }}>{t("coverageRequest.bonsLast3Months")}</span>
+                        <span className="font-bold" style={{ color: count3m > 0 ? "#f97316" : "#16a34a" }}>{count3m}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: "#8a8882" }}>{t("coverageRequest.bonsCurrentYear")}</span>
+                        <span className="font-bold" style={{ color: "#1a1917" }}>{countYear}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* HISTORIQUE DES DEMANDES */}
               <div className="p-5" style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
                 <div className="flex items-center gap-2 mb-3">
@@ -774,7 +773,9 @@ export function NewCoverageRequestPage() {
                                   background: REQUEST_STATUS_UI[r.workflow_state as RequestStatus]?.bg || "rgba(138,136,130,0.1)",
                                   color: REQUEST_STATUS_UI[r.workflow_state as RequestStatus]?.color || "#6b6963",
                                 }}>
-                                {REQUEST_STATUS_UI[r.workflow_state as RequestStatus]?.label || r.workflow_state}
+                                {REQUEST_STATUS_UI[r.workflow_state as RequestStatus]
+                                  ? statusLabel(t, REQUEST_STATUS_UI[r.workflow_state as RequestStatus])
+                                  : r.workflow_state}
                               </span>
                             </td>
                           </tr>
@@ -790,7 +791,7 @@ export function NewCoverageRequestPage() {
               {/* ÉLIGIBILITÉ */}
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-3">
-                  {employeeData.status === "NOT_ELIGIBLE" ? (
+                  {employeeData.status === "NOT_ELIGIBLE" || employeeData.status === "PENDING_EXCEPTIONAL_VALIDATION" ? (
                     <Ban className="w-4 h-4" style={{ color: "#dc2626" }} />
                   ) : employeeData.status === "PENDING_MANAGER_APPROVAL" ? (
                     <AlertTriangle className="w-4 h-4" style={{ color: "#f97316" }} />
@@ -807,7 +808,7 @@ export function NewCoverageRequestPage() {
                     border: `1px solid ${ELIGIBILITY_UI[employeeData.status].color}40`,
                   }}>
                   <div className="flex items-center gap-2">
-                    {employeeData.status === "NOT_ELIGIBLE" ? (
+                    {employeeData.status === "NOT_ELIGIBLE" || employeeData.status === "PENDING_EXCEPTIONAL_VALIDATION" ? (
                       <Ban className="w-4 h-4" style={{ color: "#dc2626" }} />
                     ) : employeeData.status === "PENDING_MANAGER_APPROVAL" ? (
                       <Clock className="w-4 h-4" style={{ color: "#f97316" }} />
@@ -815,7 +816,7 @@ export function NewCoverageRequestPage() {
                       <CheckCircle2 className="w-4 h-4" style={{ color: "#16a34a" }} />
                     )}
                     <span className="text-sm font-bold" style={{ color: ELIGIBILITY_UI[employeeData.status].color }}>
-                      {ELIGIBILITY_UI[employeeData.status].label}
+                      {statusLabel(t, ELIGIBILITY_UI[employeeData.status])}
                     </span>
                   </div>
                   {employeeData.reason && (

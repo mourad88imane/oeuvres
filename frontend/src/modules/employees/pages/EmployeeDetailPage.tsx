@@ -117,13 +117,13 @@ export function EmployeeDetailPage() {
           <ArrowLeft className="w-4 h-4" />{t("app.back")}
         </button>
         <div className="flex items-center gap-2">
-          <RoleGuard roles={["admin", "gestionnaire"]}>
+          <RoleGuard permission="employee.update">
             <button onClick={() => setShowEdit(true)}
               className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
               <Edit2 className="w-4 h-4" />{t("common.edit")}
             </button>
           </RoleGuard>
-          <RoleGuard roles={["admin"]}>
+          <RoleGuard permission="employee.delete">
             <button onClick={() => setShowDelete(true)}
               className="flex items-center gap-2 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
               <Trash2 className="w-4 h-4" />{t("common.delete")}
@@ -137,7 +137,7 @@ export function EmployeeDetailPage() {
         <div className="flex flex-col sm:flex-row gap-6">
           {/* Photo */}
           <div className="shrink-0">
-            <RoleGuard roles={["admin", "gestionnaire"]}
+            <RoleGuard permission="employee.update"
               fallback={
                 <div className="w-24 h-24 rounded-2xl overflow-hidden">
                   {employee.photo_url
@@ -293,7 +293,7 @@ export function EmployeeDetailPage() {
               {t("employees.beneficiaryCount", { count: employee.beneficiaries.length })}
               {" — "}{t("employees.eligibleCount", { count: employee.beneficiaries.filter((b) => b.is_eligible).length })}
             </p>
-            <RoleGuard roles={["admin", "gestionnaire"]}>
+            <RoleGuard permission="employee.update">
               <button onClick={() => setShowAddBene(true)}
                 className="flex items-center gap-2 px-3 py-2 bg-brand text-white rounded-lg text-sm hover:bg-brand-light">
                 <Plus className="w-4 h-4" />{t("beneficiaries.add")}
@@ -305,7 +305,7 @@ export function EmployeeDetailPage() {
             <EmptyState icon={Users} title={t("beneficiaries.noBeneficiaries")}
               description={t("employees.noHistoryDescription")}
               action={
-                <RoleGuard roles={["admin", "gestionnaire"]}>
+                <RoleGuard permission="employee.update">
                   <button onClick={() => setShowAddBene(true)} className="btn-primary">
                     <Plus className="w-4 h-4 inline mr-1" />{t("beneficiaries.add")}
                   </button>
@@ -347,7 +347,7 @@ export function EmployeeDetailPage() {
                 {t("employees.sinceDate", { date: formatDate(employee.date_hired) })}
               </span>
             </div>
-            <RoleGuard roles={["admin", "gestionnaire"]}>
+            <RoleGuard permission="employee.update">
               <div className="space-y-3">
                 <p className="text-sm font-medium text-gray-700">{t("employees.changeStatus")}</p>
                 <div className="flex gap-3 flex-wrap">
@@ -508,7 +508,7 @@ function BeneficiaryCard({ bene, onEdit, onDelete }: { bene: Beneficiary; onEdit
             {bene.is_handicapped && ` · ${t("employees.handicapped")}`}
           </p>
         </div>
-        <RoleGuard roles={["admin", "gestionnaire"]}>
+        <RoleGuard permission="employee.update">
           <div className="flex gap-1">
             <button onClick={onEdit}
               className="p-1.5 text-gray-400 hover:text-brand hover:bg-blue-50 rounded transition-colors">

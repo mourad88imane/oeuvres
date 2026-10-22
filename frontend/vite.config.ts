@@ -29,7 +29,9 @@ export default defineConfig({
     // Proxy API vers le backend Django (évite les problèmes CORS en dev)
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        // Réseau Docker par défaut (nom DNS « backend »). Pour un lancement
+        // manuel hors Docker : VITE_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+        target: (globalThis as any).process?.env?.VITE_PROXY_TARGET || "http://backend:8000",
         changeOrigin: true,
         secure: false,
       },

@@ -2,6 +2,7 @@
  * AUTH API — Appels API d'authentification
  */
 import apiClient from "@shared/api/apiClient";
+import type { UserProfile } from "./store/authStore";
 
 export interface LoginCredentials {
   email: string;
@@ -13,20 +14,17 @@ export interface LoginResponse {
   message: string;
   access: string;
   refresh: string;
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    role: string;
-    role_display: string;
-    must_change_password: boolean;
-    avatar: string | null;
-    preferences?: {
-      language: "fr" | "ar";
-      theme: "light" | "dark";
-      layout_direction: "ltr" | "rtl";
-    };
-  };
+  /** Profil utilisateur — même type que le store (login et refresh renvoient
+   *  le même payload via build_user_payload côté backend). */
+  user: UserProfile;
+}
+
+/** Réponse du token refresh — même payload user que le login. */
+export interface TokenRefreshResponse {
+  status: string;
+  access: string;
+  refresh: string;
+  user: UserProfile;
 }
 
 export const authApi = {
@@ -37,7 +35,7 @@ export const authApi = {
     apiClient.post("/auth/logout/", { refresh: refreshToken }),
 
   refreshToken: (refresh: string) =>
-    apiClient.post("/auth/token/refresh/", { refresh }),
+    apiClient.post<TokenRefreshResponse>("/auth/token/refresh/", { refresh }),
 
   getMe: () => apiClient.get("/auth/me/"),
 

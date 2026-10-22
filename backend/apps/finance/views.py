@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdmin, IsAdminOrComptable, IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 from shared.tenant.mixins import TenantViewSetMixin
 from django.http import HttpResponse
 from django.utils import timezone
@@ -69,9 +69,7 @@ class FiscalYearViewSet(ModelViewSet):
         return FiscalYearSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "dashboard", "active"):
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated(), HasModuleAccess("finance")()]
 
     svc = FiscalYearService()
 
@@ -136,11 +134,7 @@ class BudgetViewSet(TenantViewSetMixin, ModelViewSet):
         return BudgetSerializer
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve", "consumption_report"):
-            return [IsAuthenticated()]
-        if self.action == "approve":
-            return [IsAuthenticated(), IsAdmin()]
-        return [IsAuthenticated(), IsAdminOrComptable()]
+        return [IsAuthenticated(), HasModuleAccess("finance")()]
 
     def get_queryset(self):
         qs = self.svc.get_queryset()
@@ -278,10 +272,10 @@ class PaymentViewSet(TenantViewSetMixin, ModelViewSet):
 
     def get_permissions(self):
         if self.action in ("list", "retrieve", "statistics"):
-            return [IsAuthenticated(), IsAdminOrGestionnaire()]
+            return [IsAuthenticated(), HasModuleAccess("finance")()]
         if self.action in ("mark_paid", "approve", "batch_create"):
-            return [IsAuthenticated(), IsAdminOrComptable()]
-        return [IsAuthenticated(), IsAdminOrComptable()]
+            return [IsAuthenticated(), HasModuleAccess("finance")()]
+        return [IsAuthenticated(), HasModuleAccess("finance")()]
 
     def get_queryset(self):
         p = self.request.query_params
@@ -404,7 +398,7 @@ class PaymentBatchViewSet(ModelViewSet):
     svc = PaymentBatchService()
 
     def get_permissions(self):
-        return [IsAuthenticated(), IsAdminOrComptable()]
+        return [IsAuthenticated(), HasModuleAccess("finance")()]
 
     def create(self, request, *args, **kwargs):
         ser = BatchCreateSerializer(data=request.data)
@@ -447,7 +441,7 @@ class PaymentBatchViewSet(ModelViewSet):
 class FinancialEntryViewSet(ReadOnlyModelViewSet):
     serializer_class = FinancialEntrySerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdminOrComptable]
+    permission_classes = [IsAuthenticated, HasModuleAccess("finance")]
 
     def get_queryset(self):
         qs = FinancialEntry.objects.select_related(
@@ -471,7 +465,7 @@ class FinancialAlertViewSet(ModelViewSet):
     pagination_class = StandardResultsSetPagination
 
     def get_permissions(self):
-        return [IsAuthenticated(), IsAdminOrComptable()]
+        return [IsAuthenticated(), HasModuleAccess("finance")()]
 
     def get_queryset(self):
         qs = FinancialAlert.objects.filter(is_deleted=False)
@@ -505,7 +499,7 @@ class FinancialAlertViewSet(ModelViewSet):
 class FinanceDashboardView(APIView):
     """Vue unique pour le dashboard finance — agrège toutes les données."""
 
-    permission_classes = [IsAuthenticated, IsAdminOrComptable]
+    permission_classes = [IsAuthenticated, HasModuleAccess("finance")]
 
     def get(self, request):
         fy_id = request.query_params.get("fiscal_year")

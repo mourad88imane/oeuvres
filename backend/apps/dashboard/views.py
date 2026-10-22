@@ -1,5 +1,7 @@
 from rest_framework import views
 from rest_framework.permissions import IsAuthenticated
+
+from core.permissions import HasModuleAccess
 from rest_framework.response import Response
 
 from apps.reporting.services import aggregation_service
@@ -7,7 +9,7 @@ from django.utils import timezone
 
 
 class GlobalDashboardView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasModuleAccess("dashboard")]
 
     def get(self, request):
         months = int(request.query_params.get("months", 12))

@@ -72,9 +72,6 @@ export function PartnerCreatePage() {
                         ))}
                       </Select>
                     </Form.Item>
-                    <Form.Item name="code" label={t("conventions.code")}>
-                      <Input placeholder={t("conventions.codePlaceholder")} />
-                    </Form.Item>
                     <Form.Item name="type" label={t("conventions.partnerType")}>
                       <Select placeholder={t("conventions.selectType")} allowClear>
                         <Option value="lab">Laboratoire d'analyses</Option>

@@ -253,6 +253,62 @@ class HasRoles(BasePermission):
         return user_has_roles(request.user, *self.roles)
 
 
+def HasModuleAccess(module: str):
+    """
+    Vérifie si l'utilisateur a accès à un module via la DB.
+    L'accès est accordé si l'utilisateur a AU MOINS UNE permission
+    dans le module spécifié (ex: 'benefits', 'loans', 'finance').
+
+    Usage: permission_classes = [HasModuleAccess('benefits')]
+
+    Les admins/superusers passent toujours.
+    Retourne une classe de permission (factory) pour DRF.
+    """
+    class _HasModuleAccess(BasePermission):
+        def has_permission(self, request, view):
+            if not request.user.is_authenticated:
+                return False
+            if getattr(request.user, "is_admin", False) or getattr(request.user, "is_superuser", False):
+                return True
+            try:
+                from django.apps import apps
+                RolePermission = apps.get_model("administration", "RolePermission")
+                slugs = _get_user_role_slugs(request.user)
+                return RolePermission.objects.filter(
+                    role__slug__in=slugs,
+                    permission__module=module,
+                    role__is_active=True,
+                ).exists()
+            except Exception:
+                return False
+    return _HasModuleAccess
+
+
+def HasAnyModuleAccess(*modules: str):
+    """
+    Vérifie si l'utilisateur a accès à AU MOINS UN des modules donnés (OR logic).
+    Usage: permission_classes = [HasAnyModuleAccess('medical_coverage', 'invoice')]
+    """
+    class _HasAnyModuleAccess(BasePermission):
+        def has_permission(self, request, view):
+            if not request.user.is_authenticated:
+                return False
+            if getattr(request.user, "is_admin", False) or getattr(request.user, "is_superuser", False):
+                return True
+            try:
+                from django.apps import apps
+                RolePermission = apps.get_model("administration", "RolePermission")
+                slugs = _get_user_role_slugs(request.user)
+                return RolePermission.objects.filter(
+                    role__slug__in=slugs,
+                    permission__module__in=modules,
+                    role__is_active=True,
+                ).exists()
+            except Exception:
+                return False
+    return _HasAnyModuleAccess
+
+
 # ── Permission mixte ─────────────────────────────────────
 
 

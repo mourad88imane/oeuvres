@@ -26,13 +26,18 @@ class MedicalCoverageTests(TestCase):
             job_title="Ingénieur", contract_type="cdi",
             status="active",
         )
-        self.analysis_type = MedicalCoverageType.objects.create(
-            code="analysis", name="Analyse Médicale",
-            waiting_period_months=3, max_per_year=4,
+        # Les 3 types officiels sont seedés par la migration 0011.
+        self.analysis_type, _ = MedicalCoverageType.objects.get_or_create(
+            code="analysis", defaults={
+                "name": "Centre d'analyse",
+                "waiting_period_months": 3, "max_per_year": 4,
+            },
         )
-        self.imaging_type = MedicalCoverageType.objects.create(
-            code="imaging", name="Imagerie Médicale",
-            waiting_period_months=3, max_per_year=4,
+        self.imaging_type, _ = MedicalCoverageType.objects.get_or_create(
+            code="imaging", defaults={
+                "name": "Imagerie",
+                "waiting_period_months": 3, "max_per_year": 4,
+            },
         )
         self.provider = MedicalProvider.objects.create(
             name="Lab Test", type="lab", city="Alger",

@@ -167,7 +167,8 @@ export function UsersPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                        <button onClick={() => navigate(`/users/${u.id}/edit`)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
                           title={t("common.edit")}>
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>

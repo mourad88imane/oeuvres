@@ -37,6 +37,7 @@ export interface Partner {
   contact_email:       string;
   notes:               string;
   metadata:            Record<string, unknown>;
+  conventions:         PartnerConvention[];
   created_at:          string;
   updated_at:          string;
   created_by_name:     string | null;
@@ -58,6 +59,17 @@ export interface PartnerListItem {
   phone:            string;
   contact_name:     string;
   created_at:       string;
+}
+
+export interface PartnerConvention {
+  id:               string;
+  reference:        string;
+  title:            string;
+  status:           ConventionStatus;
+  status_display:   string;
+  start_date:       string;
+  end_date:         string;
+  amount:           number | null;
 }
 
 export interface Convention {

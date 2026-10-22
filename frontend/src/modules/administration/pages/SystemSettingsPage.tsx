@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, Table, Tag, message, Input, Button, Modal } from "antd";
 import { Settings, Save } from "lucide-react";
 import { fetchSystemParameters, updateSystemParameter } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 export function SystemSettingsPage() {
   const [params, setParams] = useState<any[]>([]);
@@ -46,14 +47,18 @@ export function SystemSettingsPage() {
       render: (_: any, record: any) =>
         editingId === record.id ? (
           <div className="flex gap-2">
-            <Button type="primary" size="small" icon={<Save className="w-3 h-3" />}
-              onClick={() => handleSave(record.id)}>Enregistrer</Button>
+            <RoleGuard permission="admin.manage_system_params">
+              <Button type="primary" size="small" icon={<Save className="w-3 h-3" />}
+                onClick={() => handleSave(record.id)}>Enregistrer</Button>
+            </RoleGuard>
             <Button size="small" onClick={() => setEditingId(null)}>Annuler</Button>
           </div>
         ) : (
-          <Button size="small" onClick={() => { setEditingId(record.id); setEditValue(record.value); }}>
-            Modifier
-          </Button>
+          <RoleGuard permission="admin.manage_system_params">
+            <Button size="small" onClick={() => { setEditingId(record.id); setEditValue(record.value); }}>
+              Modifier
+            </Button>
+          </RoleGuard>
         ),
     },
   ];

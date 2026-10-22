@@ -310,16 +310,14 @@ export function InvoiceCreatePage() {
   const lineCount = allVouchers.filter(v => v.amount > 0).length;
 
   const handleSubmit = async () => {
-    const lines = voucherGroups.flatMap(g =>
+    const coverage_request_lines = voucherGroups.flatMap(g =>
       g.vouchers.filter(v => v.amount > 0).map(v => ({
-        voucher: v.id,
+        coverage_request: v.id,
         amount: v.amount,
-        quantity: v.quantity,
-        unit_price: v.unit_price,
         notes: "",
       }))
     );
-    if (lines.length === 0) return;
+    if (coverage_request_lines.length === 0) return;
 
     try {
       const result = await createMutation.mutateAsync({
@@ -333,7 +331,7 @@ export function InvoiceCreatePage() {
         period_end: periodEnd || undefined,
         due_date: dueDate || undefined,
         notes,
-        lines,
+        coverage_request_lines,
       });
       setCreatedRef(result.reference);
       setCreatedId(result.id);
@@ -352,8 +350,8 @@ export function InvoiceCreatePage() {
           <div key={label} className="flex items-center gap-2 shrink-0">
             <div className={clsx("w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold transition-all")}
               style={{
-                background: i < current ? "#dcfce7" : i === current ? "#ffda2d" : "#f5f4f0",
-                color: i < current ? "#166534" : i === current ? "#1a1917" : "#b0aea6",
+                background: i < current ? "#86efac" : i === current ? "#ffda2d" : "#f5f4f0",
+                color: i < current ? "#14532d" : i === current ? "#1a1917" : "#b0aea6",
               }}
             >
               {i < current ? <Check className="w-4 h-4" /> : i + 1}
@@ -386,7 +384,7 @@ export function InvoiceCreatePage() {
                   <Layers className="w-6 h-6" style={{ color: category === c.value ? "#1a1917" : "#8a8882" }} />
                 </div>
                 <span className="font-bold">{c.label}</span>
-                {category === c.value && <Check className="w-5 h-5 absolute top-3 right-3" style={{ color: "#166534" }} />}
+                {category === c.value && <Check className="w-5 h-5 absolute top-3 right-3" style={{ color: "#14532d" }} />}
               </button>
             ))}
           </div>
@@ -425,7 +423,7 @@ export function InvoiceCreatePage() {
                       <Building2 className="w-3.5 h-3.5 inline mr-2" style={{ color: "#8a8882" }} />
                       {p.name} <span className="text-xs" style={{ color: "#8a8882" }}>({p.code})</span>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-lg font-medium" style={{ background: "#dcfce7", color: "#166534" }}>
+                    <span className="text-sm px-3 py-1 rounded-lg font-bold" style={{ background: "#86efac", color: "#14532d" }}>
                       {p.city || "—"}
                     </span>
                   </button>
@@ -509,7 +507,7 @@ export function InvoiceCreatePage() {
                     <span className="font-bold">{cn.reference}</span>
                     <span className="ml-2" style={{ color: "#5a5852" }}>{cn.title}</span>
                   </div>
-                  {conventionId === cn.id && <Check className="w-4 h-4" style={{ color: "#166534" }} />}
+                  {conventionId === cn.id && <Check className="w-4 h-4" style={{ color: "#14532d" }} />}
                 </button>
               ))}
             </div>
@@ -714,7 +712,7 @@ export function InvoiceCreatePage() {
                         <User className="w-4 h-4" style={{ color: "#8a8882" }} />
                         <span className="text-sm font-bold" style={{ color: "#1a1917" }}>{group.employeeName}</span>
                         <span className="text-xs" style={{ color: "#8a8882" }}>({group.employeeMatricule})</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#dcfce7", color: "#166534" }}>
+                        <span className="text-sm px-2.5 py-1 rounded font-bold" style={{ background: "#86efac", color: "#14532d" }}>
                           {group.beneficiaryName || group.employeeName}
                         </span>
                         <span className="text-xs" style={{ color: "#8a8882" }}>— {group.vouchers.length} bon(s)</span>
@@ -858,7 +856,7 @@ export function InvoiceCreatePage() {
                     </div>
                     <div>
                       <p className="text-xs font-medium" style={{ color: "#8a8882" }}>Pris en charge</p>
-                      <p className="text-lg font-black" style={{ color: "#166534" }}>{totalAmount.toLocaleString()} DZD</p>
+                      <p className="text-lg font-black" style={{ color: "#14532d" }}>{totalAmount.toLocaleString()} DZD</p>
                     </div>
                     <div>
                       <p className="text-xs font-medium" style={{ color: "#8a8882" }}>Restant bénéficiaire</p>
@@ -872,7 +870,9 @@ export function InvoiceCreatePage() {
 
           {createMutation.isError && (
             <div className="mt-4 p-3 rounded-xl text-sm font-bold" style={{ background: "#fee2e2", color: "#991b1b" }}>
-              {(createMutation.error as any)?.message || "Erreur lors de la création de la facture"}
+              {(createMutation.error as any)?.response?.data?.message
+                || (createMutation.error as any)?.message
+                || "Erreur lors de la création de la facture"}
             </div>
           )}
         </div>
@@ -880,8 +880,8 @@ export function InvoiceCreatePage() {
 
       {current === 5 && (
         <div className="rounded-2xl p-8 text-center" style={{ background: "#fff" }}>
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "#dcfce7" }}>
-            <Check className="w-8 h-8" style={{ color: "#166534" }} />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "#86efac" }}>
+            <Check className="w-8 h-8" style={{ color: "#14532d" }} />
           </div>
           <h2 className="text-xl font-black mb-2" style={{ color: "#1a1917" }}>Facture créée avec succès</h2>
           <p className="text-lg font-bold mb-1" style={{ color: "#ffda2d" }}>{createdRef}</p>

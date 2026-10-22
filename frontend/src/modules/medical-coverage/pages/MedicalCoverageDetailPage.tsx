@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileText, CheckCircle2, ThumbsUp, Ban, X, Printer } from "lucide-react";
 import { useToast, Spinner, Modal } from "@shared/components/ui/index";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { fmtDate, fmtDateTime } from "@shared/utils/format";
 import { medicalCoverageApi } from "../api";
 import { VOUCHER_STATUS_UI } from "../types";
@@ -109,14 +110,16 @@ export function MedicalCoverageDetailPage() {
           <ArrowLeft className="w-4 h-4" />
           Retour
         </button>
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold transition-all"
-          style={{ background: "#f3f2ee", color: "#4d4b46" }}
-        >
-          <Printer className="w-4 h-4" />
-          Imprimer
-        </button>
+        <RoleGuard permission="coverage.print_voucher">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold transition-all"
+            style={{ background: "#f3f2ee", color: "#4d4b46" }}
+          >
+            <Printer className="w-4 h-4" />
+            Imprimer
+          </button>
+        </RoleGuard>
       </div>
 
       <div className="bg-white rounded-[32px] p-6" style={{ border: "1px solid rgba(0,0,0,0.04)" }}>
@@ -138,15 +141,16 @@ export function MedicalCoverageDetailPage() {
               const btn = TRANSITION_BUTTONS[t.to_state] || { label: t.label, color: "#8a8882", icon: FileText };
               const Icon = btn.icon;
               return (
-                <button
-                  key={t.to_state}
-                  onClick={() => setShowTransition({ to_state: t.to_state, label: t.label, requires_reason: t.requires_reason })}
-                  className="flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all"
-                  style={{ background: btn.color + "15", color: btn.color }}
-                >
-                  <Icon className="w-4 h-4" />
-                  {btn.label}
-                </button>
+                <RoleGuard key={t.to_state} permission="coverage.validate">
+                  <button
+                    onClick={() => setShowTransition({ to_state: t.to_state, label: t.label, requires_reason: t.requires_reason })}
+                    className="flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all"
+                    style={{ background: btn.color + "15", color: btn.color }}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {btn.label}
+                  </button>
+                </RoleGuard>
               );
             })}
           </div>

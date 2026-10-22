@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdmin
+from core.permissions import HasModuleAccess
 
 from .models import (
     ApprovalHistory,
@@ -39,7 +39,7 @@ class SystemParameterViewSet(ModelViewSet):
     queryset = SystemParameter.objects.select_related("updated_by").all()
     serializer_class = SystemParameterSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
 
     def perform_create(self, serializer):
         serializer.save(updated_by=self.request.user)
@@ -85,7 +85,7 @@ class RoleViewSet(ModelViewSet):
     ).all()
     serializer_class = RoleSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     search_fields = ["name", "slug", "description"]
     ordering_fields = ["rank", "name", "created_at"]
     ordering = ["rank", "name"]
@@ -109,7 +109,7 @@ class PermissionViewSet(ModelViewSet):
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     search_fields = ["codename", "name", "description"]
     filterset_fields = ["module"]
     ordering_fields = ["module", "codename", "created_at"]
@@ -125,7 +125,7 @@ class RolePermissionViewSet(ModelViewSet):
     queryset = RolePermission.objects.select_related("role", "permission").all()
     serializer_class = RolePermissionSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["role", "permission"]
     search_fields = ["role__name", "role__slug", "permission__codename"]
 
@@ -141,7 +141,7 @@ class UserRoleAssignmentViewSet(ModelViewSet):
     ).all()
     serializer_class = UserRoleAssignmentSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["role", "is_active", "user"]
     search_fields = ["user__email", "user__first_name", "user__last_name", "role__name"]
 
@@ -158,7 +158,7 @@ class WorkflowPermissionViewSet(ModelViewSet):
     queryset = WorkflowPermission.objects.select_related("role", "permission").all()
     serializer_class = WorkflowPermissionSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["app_label", "model_name", "role"]
     search_fields = ["app_label", "model_name"]
 
@@ -172,7 +172,7 @@ class ApprovalMatrixViewSet(ModelViewSet):
     queryset = ApprovalMatrix.objects.prefetch_related("required_roles").all()
     serializer_class = ApprovalMatrixSerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["module", "is_active", "approval_level"]
     search_fields = ["module", "description"]
     ordering_fields = ["module", "approval_level", "min_amount"]
@@ -188,7 +188,7 @@ class ApprovalHistoryViewSet(ReadOnlyModelViewSet):
     queryset = ApprovalHistory.objects.select_related("user", "content_type").all()
     serializer_class = ApprovalHistorySerializer
     pagination_class = StandardResultsSetPagination
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["action", "content_type"]
     search_fields = ["comment", "user__email"]
     ordering_fields = ["date"]

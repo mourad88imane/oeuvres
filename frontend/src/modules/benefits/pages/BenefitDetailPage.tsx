@@ -69,7 +69,7 @@ export function BenefitDetailPage() {
           <ArrowLeft className="w-4 h-4" />{t("common.back")}
         </button>
         <div className="flex items-center gap-2">
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="benefit.update">
             {["draft","on_hold"].includes(benefit.workflow_state) && (
               <button onClick={() => setShowEdit(true)}
                 className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
@@ -77,7 +77,7 @@ export function BenefitDetailPage() {
               </button>
             )}
           </RoleGuard>
-          <RoleGuard roles={["admin"]}>
+          <RoleGuard permission="benefit.delete">
             {["draft","cancelled","rejected"].includes(benefit.workflow_state) && (
               <button onClick={() => setShowDelete(true)}
                 className="flex items-center gap-2 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">

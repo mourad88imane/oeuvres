@@ -11,9 +11,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from core.permissions import IsAdmin, IsAdminOrGestionnaire
+from core.permissions import HasModuleAccess
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 
 from .serializers import (
     ChangePasswordSerializer,
@@ -38,7 +39,7 @@ class UserViewSet(ModelViewSet):
     """
 
     queryset = User.objects.all()
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("user")]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -56,12 +57,12 @@ class UserViewSet(ModelViewSet):
     def get_permissions(self):
         """Permissions différenciées par action."""
         if self.action in ("list", "retrieve"):
-            return [IsAuthenticated(), IsAdminOrGestionnaire()]
+            return [IsAuthenticated(), HasModuleAccess("user")()]
         if self.action == "me":
             return [IsAuthenticated()]
         if self.action == "change_password":
             return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdmin()]
+        return [IsAuthenticated(), HasModuleAccess("user")()]
 
     def get_queryset(self):
         queryset = User.objects.all()
@@ -124,7 +125,10 @@ class UserViewSet(ModelViewSet):
 
         request.user.set_password(serializer.validated_data["new_password"])
         request.user.must_change_password = False
-        request.user.save(update_fields=["password", "must_change_password", "updated_at"])
+        request.user.password_changed_at = timezone.now()
+        request.user.save(
+            update_fields=["password", "must_change_password", "password_changed_at", "updated_at"]
+        )
 
         logger.info("Password changed", extra={"user_id": str(request.user.id)})
         return Response({"status": "success", "message": "Mot de passe modifié avec succès."})

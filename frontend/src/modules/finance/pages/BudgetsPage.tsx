@@ -9,6 +9,7 @@ import { useBudgets, useConsumptionReport, useActiveFiscalYear, useApproveBudget
 import { financeApi } from "../api/index";
 import { BudgetCard } from "../components/FinanceComponents";
 import { EmptyState, Spinner } from "@shared/components/ui/index";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { fmtDZD, fmtPct } from "../utils/formatters";
 import type { BudgetFilters } from "../types";
 
@@ -64,10 +65,12 @@ export function BudgetsPage() {
             <RefreshCw className="w-4 h-4" />
           </button>
           {fyId && (
-            <button onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-              <Download className="w-4 h-4" />{t("finance.exportExcel")}
-            </button>
+            <RoleGuard permission="finance.export">
+              <button onClick={handleExport}
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                <Download className="w-4 h-4" />{t("finance.exportExcel")}
+              </button>
+            </RoleGuard>
           )}
         </div>
       </div>

@@ -56,6 +56,19 @@ if ! command -v docker &>/dev/null; then
     systemctl start docker
 fi
 
+# ── 3b. Groupe docker ────────────────────────────────────
+# SANS CETTE ÉTAPE, toute commande docker échoue avec :
+#   permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+# (Makefile : make dev / status / logs / migrate … deviennent tous inutilisables)
+log_info "Ajout de l'utilisateur courant au groupe docker..."
+TARGET_USER="${SUDO_USER:-$(logname 2>/dev/null || true)}"
+if [ -n "${TARGET_USER:-}" ] && [ "$TARGET_USER" != "root" ]; then
+    usermod -aG docker "$TARGET_USER"
+    log_info "Utilisateur '$TARGET_USER' ajouté au groupe docker (reconnexion requise)"
+else
+    log_warn "Lancez ce script avec sudo pour être ajouté au groupe docker"
+fi
+
 # ── 4. Docker Compose ────────────────────────────────────
 log_info "Installation de Docker Compose..."
 if ! command -v docker-compose &>/dev/null && ! docker compose version &>/dev/null; then
@@ -136,11 +149,16 @@ echo ""
 log_info "=== Initialisation terminée ==="
 echo ""
 echo "  Prochaine étape :"
-echo "  1. Cloner le dépôt : git clone ... /opt/oeuvres-sociales"
-echo "  2. Configurer .env.production"
-echo "  3. Copier les certificats SSL"
-echo "  4. Lancer docker compose up -d"
-echo "  5. Exécuter les migrations"
+echo "  1. Se déconnecter puis se reconnector (le groupe docker n'est actif qu'à la reconnexion)"
+echo "  2. Cloner le dépôt : git clone ... /opt/oeuvres-sociales"
+echo "  3. Nettoyer les fichiers AppleDouble : find /opt/oeuvres-sociales -name '._*' -type f -delete"
+echo "  4. Configurer backend/.env.production (ALLOWED_HOSTS = IP du serveur)"
+echo "  5. Configurer frontend/.env.production (VITE_API_URL=/api/v1)"
+echo "  6. Copier les certificats SSL dans nginx/ssl/"
+echo "  7. Lancer : docker compose -f docker-compose.prod.yml up -d --build"
+echo "  8. Migrations + compte admin :"
+echo "       docker compose -f docker-compose.prod.yml exec backend python manage.py migrate"
+echo "       docker compose -f docker-compose.prod.yml exec backend python manage.py createsuperuser"
 echo ""
 
 # ── Redémarrage recommandé ─────────────────────────────

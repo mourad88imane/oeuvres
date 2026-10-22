@@ -12,6 +12,7 @@ import {
   Spinner, Modal, ConfirmDialog, Badge, EmptyState,
   Field, inputCls, useToast,
 } from "@shared/components/ui/index";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 const CATEGORIES = [
   { value: "", label: "Tous" },
@@ -101,13 +102,15 @@ export function DocumentListPage() {
             <p className="text-sm text-gray-500 mt-0.5">Ajoutez, consultez et gérez vos documents</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-[#1a1917] font-bold text-sm hover:brightness-95"
-        >
-          <Upload className="w-4 h-4" />
-          Importer un document
-        </button>
+        <RoleGuard roles={["admin", "gestionnaire", "comptable"]}>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-[#1a1917] font-bold text-sm hover:brightness-95"
+          >
+            <Upload className="w-4 h-4" />
+            Importer un document
+          </button>
+        </RoleGuard>
       </div>
 
       {/* Filters */}
@@ -152,13 +155,15 @@ export function DocumentListPage() {
             title="Aucun document"
             description="Importez votre premier document pour commencer"
             action={
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-[#1a1917] font-bold text-sm hover:brightness-95"
-              >
-                <Upload className="w-4 h-4" />
-                Importer un document
-              </button>
+              <RoleGuard roles={["admin", "gestionnaire", "comptable"]}>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-[#1a1917] font-bold text-sm hover:brightness-95"
+                >
+                  <Upload className="w-4 h-4" />
+                  Importer un document
+                </button>
+              </RoleGuard>
             }
           />
         ) : (
@@ -213,13 +218,15 @@ export function DocumentListPage() {
                         >
                           <Download className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => setDeleteTarget(doc.id)}
-                          className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <RoleGuard roles={["admin"]}>
+                          <button
+                            onClick={() => setDeleteTarget(doc.id)}
+                            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </RoleGuard>
                       </div>
                     </td>
                   </tr>

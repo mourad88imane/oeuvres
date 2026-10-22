@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@modules/auth/store/authStore";
 import { authApi } from "@modules/auth/api";
 
 const LANGUAGES = [

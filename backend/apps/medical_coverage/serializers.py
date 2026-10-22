@@ -118,11 +118,6 @@ class MedicalCoverageVoucherCreateSerializer(BaseModelSerializer):
                 request_date=request_date,
             )
 
-        if not result.is_eligible:
-            raise serializers.ValidationError({
-                "non_field_errors": result.messages,
-            })
-
         attrs["_eligibility_result"] = result
         return attrs
 
@@ -166,6 +161,7 @@ class MedicalCoverageRequestListSerializer(BaseModelSerializer):
             "coverage_date", "validation_date",
             "observation", "workflow_state", "state_label",
             "printed_at", "print_count",
+            "voucher_number", "consumption_status", "invoice_status", "consumed_at",
             "created_at", "created_by_name",
         ]
         read_only_fields = fields
@@ -199,6 +195,15 @@ class MedicalCoverageRequestDetailSerializer(MedicalCoverageRequestListSerialize
 
 
 class MedicalCoverageRequestCreateSerializer(BaseModelSerializer):
+    # Correspondance catégorie de demande -> catégorie de partenaire.
+    # La règle « Catégorie → Prestataire » est contrôlée côté BACKEND (et non
+    # seulement côté frontend) : un prestataire d'une autre catégorie est refusé.
+    CATEGORY_PARTNER_MAP = {
+        "analysis": "medical_analysis_lab",
+        "imaging": "medical_imaging_center",
+        "center": "medical_center",
+    }
+
     class Meta:
         model = MedicalCoverageRequest
         fields = [
@@ -214,6 +219,32 @@ class MedicalCoverageRequestCreateSerializer(BaseModelSerializer):
             )
         return value
 
+    def validate(self, attrs):
+        category = attrs.get("category")
+        partner = attrs.get("partner")
+        if category and partner:
+            expected = self.CATEGORY_PARTNER_MAP.get(category)
+            if expected and partner.category != expected:
+                raise serializers.ValidationError(
+                    "Le prestataire sélectionné ne correspond pas à la catégorie "
+                    "de la demande."
+                )
+        return attrs
+
+
+class MedicalCoverageRequestUpdateSerializer(MedicalCoverageRequestCreateSerializer):
+    class Meta(MedicalCoverageRequestCreateSerializer.Meta):
+        fields = MedicalCoverageRequestCreateSerializer.Meta.fields
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = getattr(self, "instance", None)
+        if instance and instance.workflow_state != MedicalCoverageRequest.Status.DRAFT:
+            raise serializers.ValidationError(
+                "Seules les demandes en brouillon peuvent être modifiées."
+            )
+        return attrs
+
 
 class MedicalCoverageRequestTransitionSerializer(serializers.Serializer):
     to_state = serializers.ChoiceField(
@@ -224,8 +255,10 @@ class MedicalCoverageRequestTransitionSerializer(serializers.Serializer):
 
 class MedicalCoverageRequestStatisticsSerializer(serializers.Serializer):
     total = serializers.IntegerField()
+    draft = serializers.IntegerField()
     pending = serializers.IntegerField()
-    validated = serializers.IntegerField()
-    printed = serializers.IntegerField()
+    approved = serializers.IntegerField()
+    rejected = serializers.IntegerField()
+    cancelled = serializers.IntegerField()
     by_partner = serializers.ListField()
     by_month = serializers.ListField()

@@ -212,6 +212,16 @@ REST_FRAMEWORK = {
     },
 }
 
+# ── Politique de mot de passe ─────────────────────────────
+# Expiration : force le changement si password_changed_at est plus vieux que
+# PASSWORD_EXPIRATION_DAYS jours. 0 ou valeur négative = désactivé.
+# Les comptes hérités (password_changed_at NULL) ne sont jamais forcés.
+PASSWORD_EXPIRATION_DAYS = config("PASSWORD_EXPIRATION_DAYS", default=90, cast=int)
+
+# Avertissement : informe (sans forcer) quand il reste moins de
+# PASSWORD_EXPIRATION_WARNING_DAYS jours avant l'expiration. 0 = désactivé.
+PASSWORD_EXPIRATION_WARNING_DAYS = config("PASSWORD_EXPIRATION_WARNING_DAYS", default=15, cast=int)
+
 # ── JWT Configuration ─────────────────────────────────────
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(

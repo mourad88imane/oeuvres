@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, CheckCircle, XCircle, Download, Printer, FileText, Building2, Calendar, DollarSign, CreditCard, Paperclip, Upload, Trash2, History, UserCheck, Pencil, X, FileDown } from "lucide-react";
 import { clsx } from "clsx";
 import { Spinner, ConfirmDialog } from "@shared/components/ui";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { useInvoice, useTransitionInvoice, useUpdateInvoice } from "../hooks/useInvoices";
 import { invoicingApi } from "../api";
 import { INVOICE_STATUS_UI, formatMonthYear, categoryLabel, INVOICE_WORKFLOW_ORDER } from "../types";
@@ -53,7 +54,7 @@ export function InvoiceDetailPage() {
           html2canvas: { scale: 2, useCORS: true, letterRendering: true },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
+        } as any)
         .from(pdfContentRef.current)
         .save();
     } catch {}
@@ -192,13 +193,15 @@ export function InvoiceDetailPage() {
         </div>
         <div className="flex gap-2">
           {inv.status === "draft" && !isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-              style={{ background: "#fef3c7", color: "#92400e" }}
-            >
-              <Pencil className="w-4 h-4" /> Modifier
-            </button>
+            <RoleGuard permission="invoice.update">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+                style={{ background: "#fef3c7", color: "#92400e" }}
+              >
+                <Pencil className="w-4 h-4" /> Modifier
+              </button>
+            </RoleGuard>
           )}
           {isEditing && (
             <>
@@ -219,47 +222,57 @@ export function InvoiceDetailPage() {
               </button>
             </>
           )}
-          <button
-            onClick={handleExportPdf}
-            disabled={pdfLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-            style={{ background: "#f5f4f0", color: "#1a1917" }}
-          >
-            {pdfLoading ? <Spinner /> : <FileDown className="w-4 h-4" />} PDF
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-            style={{ background: "#f5f4f0", color: "#1a1917" }}
-          >
-            <Printer className="w-4 h-4" /> Imprimer
-          </button>
-          {canAction("validate") && (
+          <RoleGuard permission="invoice.view">
             <button
-              onClick={() => setConfirmAction("validate")}
+              onClick={handleExportPdf}
+              disabled={pdfLoading}
               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-              style={{ background: "#dcfce7", color: "#166534" }}
+              style={{ background: "#f5f4f0", color: "#1a1917" }}
             >
-              <CheckCircle className="w-4 h-4" /> Valider
+              {pdfLoading ? <Spinner /> : <FileDown className="w-4 h-4" />} PDF
             </button>
+          </RoleGuard>
+          <RoleGuard permission="invoice.view">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+              style={{ background: "#f5f4f0", color: "#1a1917" }}
+            >
+              <Printer className="w-4 h-4" /> Imprimer
+            </button>
+          </RoleGuard>
+          {canAction("validate") && (
+            <RoleGuard permission="invoice.validate">
+              <button
+                onClick={() => setConfirmAction("validate")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+                style={{ background: "#dcfce7", color: "#166534" }}
+              >
+                <CheckCircle className="w-4 h-4" /> Valider
+              </button>
+            </RoleGuard>
           )}
           {canAction("pay") && (
-            <button
-              onClick={() => setConfirmAction("pay")}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-              style={{ background: "#dbeafe", color: "#1e40af" }}
-            >
-              <CreditCard className="w-4 h-4" /> Marquer payée
-            </button>
+            <RoleGuard permission="finance.process_payment">
+              <button
+                onClick={() => setConfirmAction("pay")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+                style={{ background: "#dbeafe", color: "#1e40af" }}
+              >
+                <CreditCard className="w-4 h-4" /> Marquer payée
+              </button>
+            </RoleGuard>
           )}
           {canAction("cancel") && (
-            <button
-              onClick={() => setConfirmAction("cancel")}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
-              style={{ background: "#fee2e2", color: "#991b1b" }}
-            >
-              <XCircle className="w-4 h-4" /> Annuler
-            </button>
+            <RoleGuard permission="invoice.validate">
+              <button
+                onClick={() => setConfirmAction("cancel")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+                style={{ background: "#fee2e2", color: "#991b1b" }}
+              >
+                <XCircle className="w-4 h-4" /> Annuler
+              </button>
+            </RoleGuard>
           )}
         </div>
       </div>
@@ -451,10 +464,12 @@ export function InvoiceDetailPage() {
             {uploading && <Spinner />}
           </div>
           {inv.status === "draft" && (
-            <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer" style={{ background: "#f5f4f0", color: "#1a1917" }}>
-              <Upload className="w-3.5 h-3.5" /> Ajouter un fichier
-              <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-            </label>
+            <RoleGuard permission="invoice.update">
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer" style={{ background: "#f5f4f0", color: "#1a1917" }}>
+                <Upload className="w-3.5 h-3.5" /> Ajouter un fichier
+                <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+              </label>
+            </RoleGuard>
           )}
         </div>
         {inv.attachments.length === 0 ? (
@@ -485,13 +500,15 @@ export function InvoiceDetailPage() {
                     <Download className="w-3.5 h-3.5" />
                   </a>
                   {inv.status === "draft" && (
-                    <button
-                      onClick={() => handleDeleteAttachment(att)}
-                      className="p-1.5 rounded-lg hover:bg-white transition-colors"
-                      style={{ color: "#991b1b" }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <RoleGuard permission="invoice.update">
+                      <button
+                        onClick={() => handleDeleteAttachment(att)}
+                        className="p-1.5 rounded-lg hover:bg-white transition-colors"
+                        style={{ color: "#991b1b" }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </RoleGuard>
                   )}
                 </div>
               </div>

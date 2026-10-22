@@ -5,7 +5,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
     dependencies = [
         ("conventions", "0005_convention_covered_services_and_more"),
-        ("medical_coverage", "0006_add_print_tracking"),
+        ("medical_coverage", "0007_alter_historicalmedicalcoveragevoucher_workflow_state_and_more"),
     ]
 
     operations = [

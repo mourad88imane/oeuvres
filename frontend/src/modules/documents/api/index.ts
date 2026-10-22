@@ -15,8 +15,8 @@ export function useDocuments(params?: { category?: string; search?: string }) {
     queryKey: DOCUMENTS_KEYS.list(params as Record<string, unknown>),
     queryFn: () =>
       apiClient
-        .get<{ status: string; data: any[] }>("/documents/", { params })
-        .then((r) => r.data.data),
+        .get<{ status: string; results?: any[] }>("/documents/", { params })
+        .then((r) => r.data.results ?? []),
   });
 }
 
@@ -25,8 +25,8 @@ export function useDocument(id: string) {
     queryKey: DOCUMENTS_KEYS.detail(id),
     queryFn: () =>
       apiClient
-        .get<{ status: string; data: any }>(`/documents/${id}/`)
-        .then((r) => r.data.data),
+        .get<{ status: string; data?: any }>(`/documents/${id}/`)
+        .then((r) => r.data.data ?? r.data),
     enabled: !!id,
   });
 }

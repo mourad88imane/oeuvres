@@ -1,11 +1,12 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db import models
 from django.shortcuts import get_object_or_404
 
-from core.permissions import IsAdminOrGestionnaire, IsStaff
+from core.permissions import HasModuleAccess, user_has_permission
 from core.pagination import StandardResultsSetPagination
 from shared.tenant.mixins import TenantViewSetMixin
 from apps.medical_coverage.models import (
@@ -24,6 +25,7 @@ from apps.medical_coverage.serializers import (
     MedicalCoverageRequestListSerializer,
     MedicalCoverageRequestDetailSerializer,
     MedicalCoverageRequestCreateSerializer,
+    MedicalCoverageRequestUpdateSerializer,
     MedicalCoverageRequestTransitionSerializer,
 )
 from apps.medical_coverage.services import MedicalCoverageService, MedicalCoverageRequestService
@@ -33,19 +35,19 @@ from apps.medical_coverage.eligibility import EligibilityEngine
 class MedicalCoverageTypeViewSet(viewsets.ModelViewSet):
     queryset = MedicalCoverageType.objects.filter(is_active=True)
     serializer_class = MedicalCoverageTypeSerializer
-    permission_classes = [IsStaff]
+    permission_classes = [IsAuthenticated, HasModuleAccess("medical_coverage")]
     pagination_class = None
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
-            return [IsStaff()]
-        return [IsAdminOrGestionnaire()]
+            return [IsAuthenticated(), HasModuleAccess("medical_coverage")()]
+        return [IsAuthenticated(), HasModuleAccess("medical_coverage")()]
 
 
 class MedicalProviderViewSet(viewsets.ModelViewSet):
     queryset = MedicalProvider.objects.filter(is_active=True)
     serializer_class = MedicalProviderSerializer
-    permission_classes = [IsStaff]
+    permission_classes = [IsAuthenticated, HasModuleAccess("medical_coverage")]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -64,7 +66,7 @@ class MedicalProviderViewSet(viewsets.ModelViewSet):
 
 class MedicalCoverageVoucherViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
     service = MedicalCoverageService()
-    permission_classes = [IsStaff]
+    permission_classes = [IsAuthenticated, HasModuleAccess("medical_coverage")]
     pagination_class = StandardResultsSetPagination
 
     def get_serializer_class(self):
@@ -80,7 +82,10 @@ class MedicalCoverageVoucherViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         return self.service.search(self.request.query_params)
 
     def perform_create(self, serializer):
-        voucher = self.service.create(serializer.validated_data, self.request.user)
+        voucher = self.service.create(
+            serializer.validated_data, self.request.user,
+            tenant=getattr(self.request, "tenant", None),
+        )
         serializer.instance = voucher
 
     def create(self, request, *args, **kwargs):
@@ -238,12 +243,14 @@ class MedicalCoverageVoucherViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
 
 class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
     service = MedicalCoverageRequestService()
-    permission_classes = [IsStaff]
+    permission_classes = [IsAuthenticated, HasModuleAccess("medical_coverage")]
     pagination_class = StandardResultsSetPagination
 
     def get_serializer_class(self):
         if self.action == "create":
             return MedicalCoverageRequestCreateSerializer
+        elif self.action in ("update", "partial_update"):
+            return MedicalCoverageRequestUpdateSerializer
         elif self.action == "retrieve":
             return MedicalCoverageRequestDetailSerializer
         return MedicalCoverageRequestListSerializer
@@ -252,7 +259,10 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
         return self.service.search(self.request.query_params)
 
     def perform_create(self, serializer):
-        request_obj = self.service.create(serializer.validated_data, self.request.user)
+        request_obj = self.service.create(
+            serializer.validated_data, self.request.user,
+            tenant=getattr(self.request, "tenant", None),
+        )
         serializer.instance = request_obj
 
     def create(self, request, *args, **kwargs):
@@ -273,6 +283,34 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
             instance, context={"request": request},
         )
         return Response({"status": "success", "data": serializer.data})
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.workflow_state != MedicalCoverageRequest.Status.DRAFT:
+            return Response(
+                {"status": "error", "message": "Seules les demandes en brouillon peuvent être modifiées."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = self.get_serializer(instance, data=request.data, partial=self.action == "partial_update")
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        detail = MedicalCoverageRequestDetailSerializer(
+            serializer.instance, context={"request": request},
+        )
+        return Response({"status": "success", "data": detail.data})
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.workflow_state != MedicalCoverageRequest.Status.DRAFT:
+            return Response(
+                {"status": "error", "message": "Seules les demandes en brouillon peuvent être supprimées."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"])
     def transition(self, request, pk=None):
@@ -310,18 +348,72 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
     def employee_eligibility(self, request):
         employee_id = request.query_params.get("employee_id")
         category = request.query_params.get("category")
+        beneficiary_id = request.query_params.get("beneficiary_id")
         if not employee_id or not category:
             return Response(
                 {"status": "error", "message": "employee_id and category are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        result = self.service.check_employee_eligibility(employee_id, category)
+        result = self.service.check_employee_eligibility(employee_id, category, beneficiary_id=beneficiary_id)
         if result is None:
             return Response(
                 {"status": "error", "message": "Employee not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
         return Response({"status": "success", "data": result})
+
+    @action(detail=True, methods=["post"])
+    def mark_consumed(self, request, pk=None):
+        # Règle métier : un bon devient « Consommé » UNIQUEMENT lorsqu'il est
+        # réellement ajouté à une facture prestataire. La consommation manuelle
+        # est réservée à l'administration (correctif de données uniquement).
+        if not (getattr(request.user, "is_admin", False) or request.user.is_superuser):
+            return Response(
+                {
+                    "status": "error",
+                    "message": (
+                        "Action réservée à l'administrateur : la consommation "
+                        "s'effectue via l'ajout du bon à une facture prestataire."
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        request_obj = get_object_or_404(MedicalCoverageRequest, id=pk)
+        if request_obj.workflow_state not in ("validated", "printed"):
+            return Response(
+                {"status": "error", "message": "Seules les demandes validées ou imprimées peuvent être marquées comme consommées."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if request_obj.consumption_status == "consumed":
+            return Response(
+                {"status": "error", "message": "Cette demande est déjà marquée comme consommée."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request_obj.consumption_status = "consumed"
+        request_obj.consumed_at = timezone.now()
+        request_obj.save(update_fields=["consumption_status", "consumed_at", "updated_at"])
+        return Response({"status": "success", "message": "Demande marquée comme consommée."})
+
+    @action(detail=True, methods=["get"])
+    def workflow_log(self, request, pk=None):
+        from shared.workflow.models import WorkflowLog
+        logs = WorkflowLog.objects.filter(
+            object_id=pk,
+            content_type_name="medical_coverage.medicalcoveragerequest",
+        ).order_by("-timestamp")
+        data = [
+            {
+                "id": str(log.id),
+                "from_state": log.from_state,
+                "to_state": log.to_state,
+                "transition_name": log.transition_name,
+                "actor_email": log.actor_email,
+                "reason": log.reason,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            }
+            for log in logs
+        ]
+        return Response({"status": "success", "count": len(data), "data": data})
 
     @action(detail=True, methods=["get"])
     def pdf(self, request, pk=None):
@@ -340,6 +432,27 @@ class MedicalCoverageRequestViewSet(TenantViewSetMixin, viewsets.ModelViewSet):
             ),
             id=pk,
         )
+
+        APPROVED_STATES = ("validated", "printed")
+        if request_obj.workflow_state not in APPROVED_STATES:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Le bon de prise en charge ne peut être imprimé qu'après approbation.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # L'impression d'un bon définitif est réservée aux rôles disposant de
+        # la permission coverage.print_voucher (admin bypass).
+        if not user_has_permission(request.user, "coverage.print_voucher"):
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Vous n'avez pas la permission d'imprimer les bons de prise en charge.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         ctx = {
             "request_obj": request_obj,

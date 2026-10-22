@@ -176,9 +176,9 @@ class MedicalCoverageVoucher(WorkflowMixin, BaseModel):
 
 class MedicalCoverageRequest(WorkflowMixin, BaseModel):
     class Category(models.TextChoices):
-        ANALYSIS = "analysis", _("Medical Analysis")
-        IMAGING = "imaging", _("Medical Imaging")
-        CENTER = "center", _("Medical Center")
+        ANALYSIS = "analysis", _("Centre d'analyse")
+        IMAGING = "imaging", _("Imagerie")
+        CENTER = "center", _("Centre médical")
 
     class Status(models.TextChoices):
         DRAFT = "draft", _("Brouillon")
@@ -190,6 +190,7 @@ class MedicalCoverageRequest(WorkflowMixin, BaseModel):
         REJECTED = "rejected", _("Rejetée")
         PRINTED = "printed", _("Imprimée")
         CLOSED = "closed", _("Clôturée")
+        CANCELLED = "cancelled", _("Annulée")
 
     request_number = models.CharField(
         max_length=50, unique=True, editable=False,
@@ -221,6 +222,32 @@ class MedicalCoverageRequest(WorkflowMixin, BaseModel):
     observation = models.TextField(blank=True, verbose_name=_("Observation"))
     printed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Date d'impression"))
     print_count = models.PositiveIntegerField(default=0, verbose_name=_("Nombre d'impressions"))
+
+    CONSUMPTION_STATUSES = [
+        ("not_consumed", _("Non consommé")),
+        ("consumed", _("Consommé")),
+    ]
+    INVOICE_STATUSES = [
+        ("not_invoiced", _("Non facturé")),
+        ("invoiced", _("Facturé")),
+        ("paid", _("Payé")),
+    ]
+
+    voucher_number = models.CharField(
+        max_length=50, unique=True, blank=True, null=True,
+        verbose_name=_("Numéro du bon"),
+    )
+    consumption_status = models.CharField(
+        max_length=20, choices=CONSUMPTION_STATUSES,
+        default="not_consumed", verbose_name=_("Statut de consommation"),
+    )
+    invoice_status = models.CharField(
+        max_length=20, choices=INVOICE_STATUSES,
+        default="not_invoiced", verbose_name=_("Statut de facturation"),
+    )
+    consumed_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("Date de consommation"),
+    )
     workflow_state = models.CharField(
         max_length=30, choices=Status.choices,
         default=Status.DRAFT, verbose_name=_("Statut"),

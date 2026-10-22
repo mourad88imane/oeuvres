@@ -9,6 +9,7 @@ import {
   fetchPermissions, fetchRolePermissions,
   assignPermissionToRole, removePermissionFromRole,
 } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 interface Permission {
   id: string; codename: string; name: string; description: string; module: string;
@@ -193,11 +194,15 @@ export function RolesManagementPage() {
       title: "Actions", key: "actions", width: 120,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
+          <RoleGuard permission="admin.manage_roles">
+            <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
+          </RoleGuard>
           {!record.is_system && (
-            <Popconfirm title="Désactiver ce rôle ?" onConfirm={() => handleDelete(record.id)}>
-              <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-            </Popconfirm>
+            <RoleGuard permission="admin.manage_roles">
+              <Popconfirm title="Désactiver ce rôle ?" onConfirm={() => handleDelete(record.id)}>
+                <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+              </Popconfirm>
+            </RoleGuard>
           )}
         </Space>
       ),
@@ -307,9 +312,11 @@ export function RolesManagementPage() {
             <p className="text-sm text-gray-500">Créer et gérer les rôles avec leurs permissions</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
-          Nouveau rôle
-        </Button>
+        <RoleGuard permission="admin.manage_roles">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+            Nouveau rôle
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card>

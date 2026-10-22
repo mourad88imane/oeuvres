@@ -3,7 +3,9 @@ from datetime import timedelta
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+
+from core.permissions import HasModuleAccess
 from rest_framework.response import Response
 
 from django.db import connections
@@ -24,7 +26,7 @@ logger = logging.getLogger("apps.monitoring")
 
 
 class MonitoringViewSet(viewsets.GenericViewSet):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
 
     @action(detail=False, methods=["get"])
     def dashboard(self, request):

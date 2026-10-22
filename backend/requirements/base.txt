@@ -50,7 +50,7 @@ django-simple-history==3.7.0
 pytz==2024.2
 
 # Validation
-pydantic==2.10.3
+pydantic==2.11.3
 drf-nested-routers==0.94.1
 python-dateutil==2.9.0.post0
 openpyxl==3.1.2

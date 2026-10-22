@@ -92,74 +92,143 @@ class ProviderInvoice(BaseModel):
 
     @transaction.atomic
     def update_total(self):
-        total = self.lines.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+        total_voucher = self.lines.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+        total_coverage = self.coverage_lines.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+        total = total_voucher + total_coverage
         self.total_amount = total
-        if self.total_covered_amount == 0 and total > 0:
-            self.total_covered_amount = total
         self.total_beneficiary_payment = self.total_amount - self.total_covered_amount
         if self.total_beneficiary_payment < 0:
             self.total_beneficiary_payment = Decimal("0.00")
-        self.save(update_fields=["total_amount", "total_covered_amount", "total_beneficiary_payment", "updated_at"])
+        self.save(update_fields=["total_amount", "total_beneficiary_payment", "updated_at"])
+
+    # ── Consommation des bons (statut contrôlé par le backend) ────
+    # Un bon de prise en charge devient « Consommé » UNIQUEMENT lorsqu'il est
+    # réellement ajouté à une facture prestataire (ligne sauvée avec succès).
+    # La création de la facture, la sélection du prestataire ou l'affichage
+    # d'un bon ne changent PAS son statut.
+
+    @transaction.atomic
+    def consume_voucher_line(self, line, user):
+        """Marque le bon d'une ligne comme consommé (idempotent)."""
+        from apps.medical_coverage.models import MedicalCoverageVoucher
+
+        voucher = line.voucher
+        # États terminaux : ne pas écraser une consommation/facturation/annulation
+        if voucher.workflow_state in ("consumed", "invoiced", "cancelled"):
+            return
+        VoucherConsumption.objects.get_or_create(
+            voucher=voucher,
+            defaults={"invoice": self, "amount": line.amount, "consumed_by": user, "notes": "", "tenant": self.tenant},
+        )
+        voucher.workflow_state = "consumed"
+        voucher.consumed_at = timezone.now()
+        voucher.save(update_fields=["workflow_state", "consumed_at", "updated_at"])
+
+    @transaction.atomic
+    def release_voucher_line(self, line):
+        """Restaure un bon retiré d'une facture éditable à « Non consommé »."""
+        from apps.medical_coverage.models import MedicalCoverageVoucher
+
+        voucher = line.voucher
+        VoucherConsumption.objects.filter(invoice=self, voucher=voucher).delete()
+        voucher.workflow_state = "approved"
+        voucher.consumed_at = None
+        voucher.save(update_fields=["workflow_state", "consumed_at", "updated_at"])
+
+    @transaction.atomic
+    def consume_coverage_line(self, line, user):
+        """Marque la demande d'une ligne comme consommée/facturée (idempotent)."""
+        from apps.medical_coverage.models import MedicalCoverageRequest
+
+        cr = line.coverage_request
+        if cr.consumption_status == "consumed" and cr.invoice_status == "invoiced":
+            return
+        cr.consumption_status = "consumed"
+        cr.consumed_at = timezone.now()
+        cr.invoice_status = "invoiced"
+        cr.save(update_fields=["consumption_status", "consumed_at", "invoice_status", "updated_at"])
+
+    @transaction.atomic
+    def release_coverage_line(self, line):
+        """Restaure une demande retirée d'une facture éditable à « Non consommé »."""
+        from apps.medical_coverage.models import MedicalCoverageRequest
+
+        cr = line.coverage_request
+        cr.consumption_status = "not_consumed"
+        cr.consumed_at = None
+        cr.invoice_status = "not_invoiced"
+        cr.save(update_fields=["consumption_status", "consumed_at", "invoice_status", "updated_at"])
+
+    def is_voucher_consumed_elsewhere(self, voucher_id):
+        """Vérifie qu'un bon n'est pas déjà lié à une autre facture active."""
+        return InvoiceLine.objects.filter(
+            voucher_id=voucher_id,
+            invoice__status__in=["draft", "validated", "paid"],
+        ).exclude(invoice=self).exists()
+
+    def is_request_consumed_elsewhere(self, request_id):
+        """Vérifie qu'une demande n'est pas déjà liée à une autre facture active."""
+        return InvoiceCoverageRequestLine.objects.filter(
+            coverage_request_id=request_id,
+            invoice__status__in=["draft", "validated", "paid"],
+        ).exclude(invoice=self).exists()
 
     @transaction.atomic
     def validate_invoice(self, user):
-        from apps.medical_coverage.models import MedicalCoverageVoucher
         status_before = self.status
         self.status = "validated"
         self.validated_at = timezone.now()
         self.validated_by = user
         self.save(update_fields=["status", "validated_at", "validated_by", "updated_at"])
+        # Les bons sont déjà consommés à l'ajout de la ligne ; la validation
+        # reste idempotente (get_or_create) pour la traçabilité et l'audit.
         for line in self.lines.select_related("voucher").all():
-            voucher = line.voucher
-            if voucher.workflow_state in ("invoiced", "cancelled"):
-                continue
-            VoucherConsumption.objects.create(
-                invoice=self,
-                voucher=voucher,
-                amount=line.amount,
-                consumed_by=user,
-                notes="",
-            )
-            voucher.workflow_state = "consumed"
-            voucher.consumed_at = timezone.now()
-            voucher.save(update_fields=["workflow_state", "consumed_at", "updated_at"])
+            self.consume_voucher_line(line, user)
+        for line in self.coverage_lines.select_related("coverage_request").all():
+            self.consume_coverage_line(line, user)
         InvoiceStatusHistory.objects.create(
             invoice=self,
             status_from=status_before,
             status_to="validated",
             changed_by=user,
+            tenant=self.tenant,
         )
 
     @transaction.atomic
     def mark_paid(self, user):
+        from apps.medical_coverage.models import MedicalCoverageRequest
         status_before = self.status
         self.status = "paid"
         self.paid_at = timezone.now()
         self.paid_by = user
         self.save(update_fields=["status", "paid_at", "paid_by", "updated_at"])
+        MedicalCoverageRequest.objects.filter(
+            invoice_lines__invoice=self
+        ).update(invoice_status="paid", updated_at=timezone.now())
         InvoiceStatusHistory.objects.create(
             invoice=self,
             status_from=status_before,
             status_to="paid",
             changed_by=user,
+            tenant=self.tenant,
         )
 
     @transaction.atomic
     def cancel_invoice(self, user):
-        from apps.medical_coverage.models import MedicalCoverageVoucher
         status_before = self.status
         self.status = "cancelled"
         self.save(update_fields=["status", "updated_at"])
         VoucherConsumption.objects.filter(invoice=self).delete()
-        voucher_ids = self.lines.values_list("voucher_id", flat=True)
-        MedicalCoverageVoucher.objects.filter(
-            id__in=voucher_ids, workflow_state="consumed"
-        ).update(workflow_state="approved", consumed_at=None, updated_at=timezone.now())
+        for line in self.lines.select_related("voucher").all():
+            self.release_voucher_line(line)
+        for line in self.coverage_lines.select_related("coverage_request").all():
+            self.release_coverage_line(line)
         InvoiceStatusHistory.objects.create(
             invoice=self,
             status_from=status_before,
             status_to="cancelled",
             changed_by=user,
+            tenant=self.tenant,
         )
 
 
@@ -190,6 +259,27 @@ class InvoiceLine(BaseModel):
 
     def __str__(self):
         return f"{self.invoice.reference} - {self.voucher.reference}"
+
+
+class InvoiceCoverageRequestLine(BaseModel):
+    invoice = models.ForeignKey(
+        ProviderInvoice, on_delete=models.CASCADE,
+        related_name="coverage_lines", verbose_name=_("Facture"),
+    )
+    coverage_request = models.ForeignKey(
+        "medical_coverage.MedicalCoverageRequest", on_delete=models.PROTECT,
+        related_name="invoice_lines", verbose_name=_("Demande de prise en charge"),
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name=_("Montant"))
+    notes = models.TextField(blank=True, verbose_name=_("Notes"))
+
+    class Meta:
+        verbose_name = _("Ligne de facture (demande)")
+        verbose_name_plural = _("Lignes de facture (demandes)")
+        unique_together = [["invoice", "coverage_request"]]
+
+    def __str__(self):
+        return f"{self.invoice.reference} - {self.coverage_request.request_number}"
 
 
 class VoucherConsumption(BaseModel):

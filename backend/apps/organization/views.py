@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from core.pagination import StandardResultsSetPagination
-from core.permissions import IsAdmin
+from core.permissions import HasModuleAccess
 
 from .models import Bureau, Direction, Function, Grade, Service, SubDirection
 from .serializers import (
@@ -20,7 +20,7 @@ from .serializers import (
 class DirectionViewSet(ModelViewSet):
     queryset = Direction.all_objects.select_related("tenant").all()
     serializer_class = DirectionSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "code", "description"]
     ordering_fields = ["ordering", "name", "code"]
@@ -39,7 +39,7 @@ class DirectionViewSet(ModelViewSet):
 class SubDirectionViewSet(ModelViewSet):
     queryset = SubDirection.all_objects.select_related("direction", "tenant").all()
     serializer_class = SubDirectionSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "code", "description"]
     ordering_fields = ["ordering", "name", "code"]
@@ -64,7 +64,7 @@ class SubDirectionViewSet(ModelViewSet):
 class ServiceViewSet(ModelViewSet):
     queryset = Service.all_objects.select_related("sub_direction", "tenant").all()
     serializer_class = ServiceSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "code", "description"]
     ordering_fields = ["ordering", "name", "code"]
@@ -89,7 +89,7 @@ class ServiceViewSet(ModelViewSet):
 class BureauViewSet(ModelViewSet):
     queryset = Bureau.all_objects.select_related("service", "service__sub_direction", "tenant").all()
     serializer_class = BureauSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "code", "description"]
     ordering_fields = ["ordering", "name", "code"]
@@ -114,7 +114,7 @@ class BureauViewSet(ModelViewSet):
 class FunctionViewSet(ModelViewSet):
     queryset = Function.all_objects.select_related("tenant").all()
     serializer_class = FunctionSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "description"]
     ordering_fields = ["ordering", "name"]
@@ -129,7 +129,7 @@ class FunctionViewSet(ModelViewSet):
 class GradeViewSet(ModelViewSet):
     queryset = Grade.all_objects.select_related("tenant").all()
     serializer_class = GradeSerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = StandardResultsSetPagination
     search_fields = ["name", "description"]
     ordering_fields = ["ordering", "level", "name"]
@@ -146,7 +146,7 @@ class OrganizationLookupViewSet(ReadOnlyModelViewSet):
 
     queryset = Direction.all_objects.none()
     serializer_class = DirectionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasModuleAccess("employees")]
     pagination_class = None
 
     def list(self, request):

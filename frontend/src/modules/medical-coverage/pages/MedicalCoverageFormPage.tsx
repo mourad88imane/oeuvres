@@ -10,6 +10,7 @@ import {
   Scan, Stethoscope, Calendar, FileText, Clock, Users,
 } from "lucide-react";
 import { useToast } from "@shared/components/ui/index";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { medicalCoverageApi } from "../api";
 import type { MedicalCoverageCreatePayload, EmployeeInfoResponse, MedicalProvider } from "../types";
 import { VOUCHER_STATUS_UI } from "../types";
@@ -725,28 +726,32 @@ export function MedicalCoverageFormPage({ coverageType }: Props) {
               <Eye className="w-4 h-4" />
               Voir
             </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all"
-              style={{ color: "#4d4b46", background: "#f3f2ee" }}
-            >
-              <Printer className="w-4 h-4" />
-              Imprimer
-            </button>
-            <button
-              type="submit"
-              disabled={createMutation.isPending || !selectedEmployee}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
-              style={{ background: "#ffda2d", color: "#1a1917" }}
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              Sauvegarder
-            </button>
+            <RoleGuard permission="coverage.print_voucher">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all"
+                style={{ color: "#4d4b46", background: "#f3f2ee" }}
+              >
+                <Printer className="w-4 h-4" />
+                Imprimer
+              </button>
+            </RoleGuard>
+            <RoleGuard permission="coverage.create">
+              <button
+                type="submit"
+                disabled={createMutation.isPending || !selectedEmployee}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl text-sm font-bold transition-all disabled:opacity-50"
+                style={{ background: "#ffda2d", color: "#1a1917" }}
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                Sauvegarder
+              </button>
+            </RoleGuard>
           </div>
         </div>
       </div>

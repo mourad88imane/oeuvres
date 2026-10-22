@@ -2,7 +2,9 @@ import logging
 
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
+
+from core.permissions import HasModuleAccess
 from rest_framework.response import Response
 
 from django.utils import timezone
@@ -63,7 +65,7 @@ ai_pipeline = AIPipeline()
 class AIModelRegistryViewSet(viewsets.ModelViewSet):
     queryset = AIModelRegistry.objects.all()
     serializer_class = AIModelRegistrySerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["task_type", "status", "name"]
     search_fields = ["name", "description"]
 
@@ -83,7 +85,7 @@ class AIAnomalyViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["severity", "status", "detection_method", "target_type"]
     ordering = ["-created_at"]
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, HasModuleAccess("admin")])
     def resolve(self, request, pk=None):
         anomaly = self.get_object()
         serializer = ResolveAnomalySerializer(data=request.data)
@@ -155,7 +157,7 @@ class AIFeatureViewSet(viewsets.ReadOnlyModelViewSet):
 class AIEventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AIEvent.objects.all()
     serializer_class = AIEventSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, HasModuleAccess("admin")]
     filterset_fields = ["event_category", "event_name", "user_role"]
     ordering = ["-timestamp"]
 

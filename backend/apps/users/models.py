@@ -7,9 +7,11 @@ AUTH_USER_MODEL = "users.User"
 """
 
 import uuid
+from datetime import timedelta
 
 from simple_history.models import HistoricalRecords
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -98,6 +100,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name="Doit changer le mot de passe",
         help_text="Forcé après la première connexion ou reset admin",
     )
+    password_changed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Dernier changement de mot de passe",
+        help_text="Horodatage du dernier changement de mot de passe (null tant que jamais changé)",
+    )
     last_login_ip = models.GenericIPAddressField(
         null=True, blank=True, verbose_name="Dernière IP de connexion"
     )
@@ -143,6 +151,22 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self):
         return self.first_name
+
+    def is_password_expired(self, max_age_days=None) -> bool:
+        """
+        Politique d'expiration : True si le mot de passe a été changé il y a
+        plus de `max_age_days` jours (défaut : settings.PASSWORD_EXPIRATION_DAYS).
+
+        - 0 ou valeur négative -> politique désactivée (jamais expiré).
+        - password_changed_at NULL (compte hérité, jamais suivi) -> jamais forcé.
+        """
+        if max_age_days is None:
+            max_age_days = settings.PASSWORD_EXPIRATION_DAYS or 0
+        if not max_age_days or max_age_days <= 0:
+            return False
+        if self.password_changed_at is None:
+            return False
+        return timezone.now() - self.password_changed_at > timedelta(days=max_age_days)
 
     # ── Helpers rôles ────────────────────────────────────
     @property

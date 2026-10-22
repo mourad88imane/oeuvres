@@ -131,7 +131,7 @@ class MedicalCoverageService:
         return list(deps.values())
 
     @transaction.atomic
-    def create(self, data, user):
+    def create(self, data, user, tenant=None):
         request_date = data.get("request_date") or timezone.now().date()
         coverage_type = data["coverage_type"]
 
@@ -160,6 +160,7 @@ class MedicalCoverageService:
             next_eligible_date=result.next_eligible_date,
             created_by=user,
             updated_by=user,
+            tenant=tenant,
         )
         voucher.save()
 
@@ -305,6 +306,10 @@ class MedicalCoverageRequestService:
             qs = qs.filter(employee_id=p["employee"])
         if p.get("status"):
             qs = qs.filter(workflow_state=p["status"])
+        if p.get("status__in"):
+            states = [s.strip() for s in p["status__in"].split(",") if s.strip()]
+            if states:
+                qs = qs.filter(workflow_state__in=states)
         if p.get("partner"):
             qs = qs.filter(partner_id=p["partner"])
         if p.get("date_from"):
@@ -330,14 +335,22 @@ class MedicalCoverageRequestService:
         except (SystemParameter.DoesNotExist, ValueError, TypeError):
             return 3
 
-    def count_requests_last_n_months(self, employee, beneficiary=None, months=None):
+    def count_requests_last_n_months(self, employee, beneficiary=None, months=None, category=None):
         if months is None:
             months = self.get_restriction_period_months()
         cutoff = timezone.now().date() - relativedelta(months=months)
         qs = self.Request.objects.filter(
             employee=employee,
             created_at__gte=cutoff,
+            # Seuls les BONS réellement accordés (validés / imprimés) comptent
+            # pour la restriction : une demande rejetée, annulée ou en brouillon
+            # ne doit pas consommer le quota des 3 mois.
+            workflow_state__in=["validated", "printed"],
         )
+        if category:
+            # Cohérence avec l'endpoint d'éligibilité : la restriction s'applique
+            # par catégorie (une demande « Imagerie » ne bloque pas « Analyse »).
+            qs = qs.filter(category=category)
         if beneficiary:
             qs = qs.filter(beneficiary=beneficiary)
         else:
@@ -345,14 +358,33 @@ class MedicalCoverageRequestService:
         return qs.count()
 
     @transaction.atomic
-    def create(self, data, user):
+    def create(self, data, user, tenant=None):
         coverage_date = data.get("coverage_date") or timezone.now().date()
         employee = data["employee"]
         beneficiary = data.get("beneficiary")
         restriction_months = self.get_restriction_period_months()
-        req_count = self.count_requests_last_n_months(employee, beneficiary, months=restriction_months)
+        req_count = self.count_requests_last_n_months(
+            employee, beneficiary, months=restriction_months,
+            category=data["category"],
+        )
 
-        if req_count == 0:
+        voucher_blocked = False
+        try:
+            ct = MedicalCoverageType.objects.get(code=data["category"])
+            engine = EligibilityEngine(MedicalCoverageVoucher)
+            if beneficiary:
+                e_result = engine.check_dependent_eligibility(employee, beneficiary, ct, coverage_date)
+            else:
+                e_result = engine.check_employee_eligibility(employee, ct, coverage_date)
+            voucher_blocked = not e_result.is_eligible
+        except MedicalCoverageType.DoesNotExist:
+            pass
+
+        if voucher_blocked:
+            workflow_state = "pending_manager_approval"
+            validation_date = None
+            approval_action = "pending_manager"
+        elif req_count == 0:
             workflow_state = "validated"
             validation_date = coverage_date
             approval_action = "auto_validated"
@@ -372,6 +404,7 @@ class MedicalCoverageRequestService:
             workflow_state=workflow_state,
             created_by=user,
             updated_by=user,
+            tenant=tenant,
         )
         request_obj.save()
 
@@ -385,6 +418,7 @@ class MedicalCoverageRequestService:
             comment=f"Période de restriction: {restriction_months} mois, demandes trouvées: {req_count}",
             from_state="draft",
             to_state=workflow_state,
+            tenant=tenant,
         )
 
         self.audit.log_create(request_obj, user, extra_data={
@@ -430,6 +464,7 @@ class MedicalCoverageRequestService:
             comment=reason or "",
             from_state=result.from_state,
             to_state=to_state,
+            tenant=request_obj.tenant,
         )
 
         self.audit.log_workflow_transition(
@@ -461,7 +496,7 @@ class MedicalCoverageRequestService:
             })
         return results
 
-    def check_employee_eligibility(self, employee_id, category):
+    def check_employee_eligibility(self, employee_id, category, beneficiary_id=None):
         from apps.employees.models import Employee
         from apps.beneficiaries.models import Beneficiary
         from apps.medical_coverage.models import MedicalCoverageType
@@ -475,37 +510,53 @@ class MedicalCoverageRequestService:
         restriction_months = self.get_restriction_period_months()
         cutoff = timezone.now().date() - relativedelta(months=restriction_months)
 
-        employee_count = self.Request.objects.filter(
-            employee=employee,
-            category=category,
-            created_at__gte=cutoff,
-            beneficiary__isnull=True,
-        ).count()
-
-        beneficiaries = Beneficiary.objects.filter(employee=employee)
-        total_beneficiary_count = 0
-        for b in beneficiaries:
-            count = self.Request.objects.filter(
+        if beneficiary_id:
+            beneficiary = Beneficiary.objects.filter(id=beneficiary_id, employee=employee).first()
+            if not beneficiary:
+                return None
+            req_count = self.Request.objects.filter(
                 employee=employee,
-                beneficiary=b,
+                beneficiary=beneficiary,
                 category=category,
                 created_at__gte=cutoff,
+                workflow_state__in=["validated", "printed"],
             ).count()
-            total_beneficiary_count += count
+            employee_count = 0
+            total_beneficiary_count = req_count
+            last_request = self.Request.objects.filter(
+                employee=employee,
+                beneficiary=beneficiary,
+                category=category,
+            ).select_related("partner", "beneficiary").order_by("-created_at").first()
+            recent_requests = list(self.Request.objects.filter(
+                employee=employee,
+                beneficiary=beneficiary,
+                category=category,
+                created_at__gte=cutoff,
+            ).select_related("partner", "beneficiary").order_by("-created_at"))
+        else:
+            req_count = self.Request.objects.filter(
+                employee=employee,
+                category=category,
+                created_at__gte=cutoff,
+                beneficiary__isnull=True,
+                workflow_state__in=["validated", "printed"],
+            ).count()
+            employee_count = req_count
+            total_beneficiary_count = 0
+            last_request = self.Request.objects.filter(
+                employee=employee,
+                category=category,
+            ).select_related("partner", "beneficiary").order_by("-created_at").first()
+            recent_requests = list(self.Request.objects.filter(
+                employee=employee,
+                category=category,
+                created_at__gte=cutoff,
+            ).select_related("partner", "beneficiary").order_by("-created_at"))
 
-        total_count = employee_count + total_beneficiary_count
+        total_count = req_count
 
-        last_request = self.Request.objects.filter(
-            employee=employee,
-            category=category,
-        ).select_related("partner", "beneficiary").order_by("-created_at").first()
-
-        recent_requests = list(self.Request.objects.filter(
-            employee=employee,
-            category=category,
-            created_at__gte=cutoff,
-        ).select_related("partner", "beneficiary").order_by("-created_at"))
-
+        beneficiaries = Beneficiary.objects.filter(employee=employee)
         marital_display = employee.get_marital_status_display() if hasattr(employee, "get_marital_status_display") else employee.marital_status
 
         employee_info = {
@@ -536,7 +587,12 @@ class MedicalCoverageRequestService:
             voucher_svc = MedicalCoverageService()
             voucher_summary = voucher_svc.get_employee_coverage_summary(employee_id, category)
             engine = EligibilityEngine(voucher_svc.Voucher)
-            e_result = engine.check_employee_eligibility(employee_id, ct, timezone.now().date())
+            if beneficiary_id:
+                e_result = engine.check_dependent_eligibility(
+                    employee, beneficiary, ct, timezone.now().date(),
+                )
+            else:
+                e_result = engine.check_employee_eligibility(employee_id, ct, timezone.now().date())
             voucher_eligibility = {
                 "is_eligible": e_result.is_eligible,
                 "messages": e_result.messages,
@@ -552,8 +608,8 @@ class MedicalCoverageRequestService:
 
         voucher_blocked = voucher_eligibility and not voucher_eligibility["is_eligible"]
         if voucher_blocked:
-            status = "NOT_ELIGIBLE"
-            reason = voucher_eligibility["messages"][0] if voucher_eligibility["messages"] else "Non éligible selon les règles de gestion"
+            status = "PENDING_EXCEPTIONAL_VALIDATION"
+            reason = voucher_eligibility["messages"][0] if voucher_eligibility["messages"] else "Non éligible selon les règles de gestion. Validation exceptionnelle requise."
         elif total_count == 0:
             status = "APPROVED"
             reason = f"Aucune demande dans les {restriction_months} derniers mois. Demande auto-validée."
@@ -600,9 +656,11 @@ class MedicalCoverageRequestService:
         if category:
             qs = qs.filter(category=category)
         total = qs.count()
-        pending = qs.filter(workflow_state__in=["draft", "submitted", "pending_approval", "pending_manager_approval", "pending_director_approval"]).count()
-        validated = qs.filter(workflow_state="validated").count()
-        printed = qs.filter(workflow_state="printed").count()
+        draft = qs.filter(workflow_state="draft").count()
+        pending = qs.filter(workflow_state__in=["submitted", "pending_approval", "pending_manager_approval", "pending_director_approval"]).count()
+        approved = qs.filter(workflow_state__in=["validated", "printed"]).count()
+        rejected = qs.filter(workflow_state="rejected").count()
+        cancelled = qs.filter(workflow_state__in=["closed", "cancelled"]).count()
         by_partner = qs.values(
             "partner__name", "partner__id",
         ).annotate(count=Count("id")).order_by("-count")[:10]
@@ -611,9 +669,11 @@ class MedicalCoverageRequestService:
         ).values("month").annotate(count=Count("id")).order_by("month")
         return {
             "total": total,
+            "draft": draft,
             "pending": pending,
-            "validated": validated,
-            "printed": printed,
+            "approved": approved,
+            "rejected": rejected,
+            "cancelled": cancelled,
             "by_partner": list(by_partner),
             "by_month": list(by_month),
         }

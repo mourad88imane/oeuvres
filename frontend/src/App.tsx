@@ -2,7 +2,7 @@
  * APP — Point d'entrée de l'application React
  */
 import { useEffect } from "react";
-import { ConfigProvider, theme } from "antd";
+import { App as AntdApp, ConfigProvider, theme } from "antd";
 import { StyleProvider } from "@ant-design/cssinjs";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -68,11 +68,13 @@ export function App() {
       }}
     >
       <GlobalStyleInjector />
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AppRouter />
-        </QueryClientProvider>
-      </ErrorBoundary>
+      <AntdApp>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AppRouter />
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </AntdApp>
     </ConfigProvider>
     </StyleProvider>
   );

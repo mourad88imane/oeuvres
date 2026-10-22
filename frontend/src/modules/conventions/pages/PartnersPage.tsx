@@ -66,7 +66,7 @@ export function PartnersPage() {
             className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
             <RefreshCw className="w-4 h-4" />
           </button>
-          <RoleGuard roles={["admin","gestionnaire"]}>
+          <RoleGuard permission="partner.create">
             <button onClick={() => navigate("/conventions/partners/new")}
               className="flex items-center gap-2 px-3 py-2 bg-brand text-white text-sm rounded-lg hover:bg-blue-800">
               <Plus className="w-4 h-4" />{t("conventions.addPartner")}
@@ -153,7 +153,7 @@ export function PartnersPage() {
                           className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600">
                           <Eye className="w-4 h-4" />
                         </button>
-                        <RoleGuard roles={["admin","gestionnaire"]}>
+                        <RoleGuard permission="partner.update">
                           <button onClick={() => navigate(`/conventions/partners/${p.id}/edit`)}
                             title={t("common.edit")}
                             className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600">
@@ -164,7 +164,7 @@ export function PartnersPage() {
                             className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-600">
                             <Archive className="w-4 h-4" />
                           </button>
-                          <RoleGuard roles={["admin"]}>
+                          <RoleGuard permission="partner.delete">
                             <button onClick={() => setDeleteTarget(p.id)}
                               title={t("common.delete")}
                               className="p-1.5 rounded-lg hover:bg-red-50 text-red-600">

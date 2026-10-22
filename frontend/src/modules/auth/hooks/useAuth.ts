@@ -12,7 +12,7 @@ export function useAuth() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { i18n } = useTranslation();
-  const { user, isAuthenticated, logout: storeLogout, setTokens, hasRole, canApprove, canPay } = useAuthStore();
+  const { user, isAuthenticated, logout: storeLogout, setTokens, hasRole, hasPermission, hasModuleAccess, canApprove, canPay } = useAuthStore();
 
   // ── Login ───────────────────────────────────────────────
   const loginMutation = useMutation({
@@ -64,6 +64,8 @@ export function useAuth() {
     login: loginMutation.mutate,
     logout: logoutMutation.mutate,
     hasRole,
+    hasPermission,
+    hasModuleAccess,
     canApprove,
     canPay,
   };

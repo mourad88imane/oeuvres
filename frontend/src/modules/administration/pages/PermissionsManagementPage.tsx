@@ -4,6 +4,7 @@ import {
 } from "antd";
 import { KeyRound, Plus, Edit2, Trash2 } from "lucide-react";
 import { fetchPermissions, createPermission, updatePermission, deletePermission } from "../api";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 const MODULES = [
   "admin", "employees", "beneficiaries", "benefits", "loans",
@@ -74,10 +75,14 @@ export function PermissionsManagementPage() {
       title: "Actions", key: "actions", width: 100,
       render: (_: any, record: any) => (
         <Space>
-          <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
-          <Popconfirm title="Supprimer cette permission ?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
-          </Popconfirm>
+          <RoleGuard permission="admin.manage_permissions">
+            <Button size="small" icon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(record)} />
+          </RoleGuard>
+          <RoleGuard permission="admin.manage_permissions">
+            <Popconfirm title="Supprimer cette permission ?" onConfirm={() => handleDelete(record.id)}>
+              <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+            </Popconfirm>
+          </RoleGuard>
         </Space>
       ),
     },
@@ -95,9 +100,11 @@ export function PermissionsManagementPage() {
             <p className="text-sm text-gray-500">Permissions granulaires par module</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
-          Nouvelle permission
-        </Button>
+        <RoleGuard permission="admin.manage_permissions">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+            Nouvelle permission
+          </Button>
+        </RoleGuard>
       </div>
 
       <div className="flex gap-3">

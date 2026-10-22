@@ -7,6 +7,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useToast } from "@shared/components/ui/index";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 import { medicalCoverageApi } from "../api";
 import { VOUCHER_STATUS_UI } from "../types";
 import type { MedicalCoverageFilters, VoucherStatus } from "../types";
@@ -95,14 +96,16 @@ export function MedicalCoverageListPage({ coverageType }: Props) {
             <p className="text-xs font-medium" style={{ color: "#8a8882" }}>Gestion des bons de prise en charge</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate(newPath)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all"
-          style={{ background: "#ffda2d", color: "#1a1917" }}
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau bon
-        </button>
+        <RoleGuard permission="coverage.create">
+          <button
+            onClick={() => navigate(newPath)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all"
+            style={{ background: "#ffda2d", color: "#1a1917" }}
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau bon
+          </button>
+        </RoleGuard>
       </div>
 
       <div className="bg-white rounded-[32px] p-6" style={{ border: "1px solid rgba(0,0,0,0.04)" }}>
@@ -217,13 +220,15 @@ export function MedicalCoverageListPage({ coverageType }: Props) {
           <div className="flex flex-col items-center py-16">
             <Icon className="w-12 h-12 mb-3" style={{ color: "#d4d0c8" }} />
             <p className="text-sm font-bold" style={{ color: "#8a8882" }}>Aucun bon trouvé</p>
-            <button
-              onClick={() => navigate(newPath)}
-              className="mt-3 px-4 py-2 rounded-2xl font-bold text-sm"
-              style={{ background: "#ffda2d", color: "#1a1917" }}
-            >
-              Créer un bon
-            </button>
+            <RoleGuard permission="coverage.create">
+              <button
+                onClick={() => navigate(newPath)}
+                className="mt-3 px-4 py-2 rounded-2xl font-bold text-sm"
+                style={{ background: "#ffda2d", color: "#1a1917" }}
+              >
+                Créer un bon
+              </button>
+            </RoleGuard>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -284,15 +289,17 @@ export function MedicalCoverageListPage({ coverageType }: Props) {
                           >
                             <Eye className="w-4 h-4" style={{ color: "#8a8882" }} />
                           </button>
-                          {v.workflow_state === "draft" && (
-                            <button
-                              onClick={e => { e.stopPropagation(); deleteMutation.mutate(v.id); }}
-                              className="p-1.5 rounded-xl transition-colors"
-                              onMouseEnter={e => e.currentTarget.style.background = "rgba(239,68,68,0.08)"}
-                              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                            >
-                              <X className="w-4 h-4" style={{ color: "#dc2626" }} />
-                            </button>
+                           {v.workflow_state === "draft" && (
+                            <RoleGuard permission="coverage.update">
+                              <button
+                                onClick={e => { e.stopPropagation(); deleteMutation.mutate(v.id); }}
+                                className="p-1.5 rounded-xl transition-colors"
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(239,68,68,0.08)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >
+                                <X className="w-4 h-4" style={{ color: "#dc2626" }} />
+                              </button>
+                            </RoleGuard>
                           )}
                         </div>
                       </td>

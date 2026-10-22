@@ -6,6 +6,7 @@ import { UserCog, Plus, Trash2 } from "lucide-react";
 import { fetchUserRoleAssignments, assignRoleToUser, removeUserRoleAssignment } from "../api";
 import { fetchRoles } from "../api";
 import apiClient from "@shared/api/apiClient";
+import { RoleGuard } from "@shared/components/layout/ProtectedRoute";
 
 export function UserRoleAssignmentPage() {
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -65,7 +66,9 @@ export function UserRoleAssignmentPage() {
       title: "Actions", key: "actions", width: 80,
       render: (_: any, record: any) => (
         <Popconfirm title="Supprimer cette assignation ?" onConfirm={() => handleDelete(record.id)}>
-          <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+          <RoleGuard permission="admin.manage_users">
+            <Button size="small" danger icon={<Trash2 className="w-3.5 h-3.5" />} />
+          </RoleGuard>
         </Popconfirm>
       ),
     },
@@ -83,9 +86,11 @@ export function UserRoleAssignmentPage() {
             <p className="text-sm text-gray-500">Assignations supplémentaires de rôles</p>
           </div>
         </div>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
-          Assigner un rôle
-        </Button>
+        <RoleGuard permission="admin.manage_users">
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { form.resetFields(); setModalOpen(true); }}>
+            Assigner un rôle
+          </Button>
+        </RoleGuard>
       </div>
 
       <Card>
